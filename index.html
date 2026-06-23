@@ -1291,7 +1291,7 @@ window.invShowPdf = () => {
 // ── 근로계약서 ──
 let labor = {
   view:'form',
-  name:'', jumin:'', address:'', dept:'', job:'',
+  name:'', jumin:'', address:'', dept:'', rank:'', job:'',
   startDate:'', endDate:'', contractDate:'', salary:'',
   signData:null,
 };
@@ -1356,7 +1356,16 @@ function renderLaborForm(el) {
 
       <div style="background:#fff;border-radius:12px;border:1px solid #DDE4EF;padding:16px;margin-bottom:12px;box-shadow:0 1px 4px rgba(29,91,166,0.08);">
         <div style="font-size:12px;font-weight:700;color:#1D5BA6;margin-bottom:12px;">💼 소속 및 업무</div>
-        ${laborField('소속', `<input type="text" value="${labor.dept}" placeholder="부서/소속 입력" oninput="labor.dept=this.value" ${laborInpStyle}>`)}
+        ${laborField('소속', `
+          <select onchange="labor.dept=this.value" style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:9px 12px;font-size:13px;color:#1A2540;background:#FAFCFF;cursor:pointer;">
+            <option value="">선택하세요</option>
+            ${['사업본부','현장관리팀','인력배치팀','경영지원본부','경영총무팀','영업기획팀'].map(d=>'<option value="'+d+'" '+(labor.dept===d?'selected':'')+'>'+d+'</option>').join('')}
+          </select>`)}
+        ${laborField('직급', `
+          <select onchange="labor.rank=this.value" style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:9px 12px;font-size:13px;color:#1A2540;background:#FAFCFF;cursor:pointer;">
+            <option value="">선택하세요</option>
+            ${['과장','대리','사원'].map(r=>'<option value="'+r+'" '+(labor.rank===r?'selected':'')+'>'+r+'</option>').join('')}
+          </select>`)}
         ${laborField('담당 업무', `<input type="text" value="${labor.job}" placeholder="담당 업무 입력" oninput="labor.job=this.value" ${laborInpStyle}>`)}
       </div>
 
@@ -1596,7 +1605,7 @@ function renderLaborPdf(el) {
         <p style="font-weight:700;margin:14px 0 5px;">제3조 【근무장소 및 대상업무】</p>
         <p style="margin-bottom:4px;">1. "을"은 "갑"이 제공하는 근무장소에서 근무하며, "을"은 이에 따른다.</p>
         <p style="margin-bottom:4px;">2. 대상업무</p>
-        <p style="margin-bottom:4px;">&nbsp;&nbsp;1) 소속 : ${uline(labor.dept,180)}</p>
+        <p style="margin-bottom:4px;">&nbsp;&nbsp;1) 소속 : ${uline(labor.dept,140)} &nbsp; 직급 : ${uline(labor.rank,60)}</p>
         <p style="margin-bottom:4px;">&nbsp;&nbsp;2) 담당 업무 : ${uline(labor.job,160)}</p>
         <p style="margin-bottom:8px;">&nbsp;&nbsp;3) 기타 관리자의 지시업무</p>
 
@@ -1660,6 +1669,7 @@ window.laborConfirm = async () => {
       jumin:        labor.jumin,
       address:      labor.address,
       dept:         labor.dept,
+      rank:         labor.rank,
       job:          labor.job,
       startDate:    labor.startDate,
       endDate:      labor.endDate,
