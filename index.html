@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>P4 Ph2 FAB · 관리자</title>
+
+<!-- Firebase -->
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+  import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
+    from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+  import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, getDocs, serverTimestamp }
+    from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCyQxBJ_ftfM0ImBXubmqD5gfzFR54iPmE",
+    authDomain: "p4ph2-fab-506a7.firebaseapp.com",
+    projectId: "p4ph2-fab-506a7",
+    storageBucket: "p4ph2-fab-506a7.appspot.com",
+    messagingSenderId: "369463179140",
+    appId: "1:369463179140:web:placeholder"
+  };
+
+  const app  = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db   = getFirestore(app);
+  const provider = new GoogleAuthProvider();
+
+  // ── 상태 관리 ──
+  let currentUser = null;
+
+  // 로그인 버튼
+  window.doLogin = async () => {
+    try {
+      await signInWithPopup(auth, provider);
+    } catch(e) {
+      console.error(e);
+      alert('로그인 중 오류가 발생했습니다.');
+    }
+  };
+
+  // 로그아웃 버튼
+  window.doLogout = async () => {
+    await signOut(auth);
+  };
+
+  // 인증 상태 감지
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+      showScreen('login');
+      return;
+    }
+    currentUser = user;
+
+    // allowed_users 컬렉션에 이메일이 있는지 확인
+    const ref = doc(db, 'allowed_users', user.email);
+    const snap = await getDoc(ref);
+
+    if (snap.exists()) {
+      // 승인된 사용자 → 앱 진입
+      document.getElementById('user-initial').textContent =
+        user.displayName ? user.displayName[0].toUpperCase() : user.email[0].toUpperCase();
+      document.getElementById('user-name').textContent =
+        user.displayName || user.email;
+      showScreen('app');
+      loadAllowedUsers();
+    } else {
+      // 미승인 → access_requests에 기록 후 차단
+      await setDoc(doc(db, 'access_requests', user.email), {
+        email: user.email,
+        displayName: user.displayName || '',
+        requestedAt: serverTimestamp()
+      });
+      showScreen('denied');
+    }
+  });
+
+  // ── 접근 관리 탭 ──
+  window.loadAllowedUsers = async () => {
+    // 승인된 사용자 목록
+    const snap = await getDocs(collection(db, 'allowed_users'));
+    const list = document.getElementById('allowed-list');
+    list.innerHTML = '';
+    snap.forEach(d => {
+      const item = document.createElement('div');
+      item.className = 'user-item';
+      item.innerHTML = `
+        <div class="user-info">
+          <div class="user-email">${d.id}</div>
+          <div class="user-role">${d.data().role || 'user'}</div>
+        </div>
+        ${d.id !== currentUser.email
+          ? `<button class="revoke-btn" onclick="revokeUser('${d.id}')">취소</button>`
+          : '<div class="role-badge">나</div>'}
+      `;
+      list.appendChild(item);
+    });
+
+    // 대기 중인 요청
+    const reqSnap = await getDocs(collection(db, 'access_requests'));
+    const reqList = document.getElementById('request-list');
+    const noReq   = document.getElementById('no-request');
+    reqList.innerHTML = '';
+    let count = 0;
+    reqSnap.forEach(d => {
+      count++;
+      const item = document.createElement('div');
+      item.className = 'user-item';
+      item.innerHTML = `
+        <div class="user-info">
+          <div class="user-email">${d.id}</div>
+          <div class="user-role">${d.data().displayName || ''}</div>
+        </div>
+        <button class="approve-btn" onclick="approveUser('${d.id}', '${d.data().displayName}')">승인</button>
+      `;
+      reqList.appendChild(item);
+    });
+    noReq.style.display = count === 0 ? 'block' : 'none';
+  };
+
+  window.approveUser = async (email, name) => {
+    await setDoc(doc(db, 'allowed_users', email), {
+      role: 'user',
+      displayName: name || '',
+      approvedAt: serverTimestamp(),
+      approvedBy: currentUser.email
+    });
+    await deleteDoc(doc(db, 'access_requests', email));
+    loadAllowedUsers();
+  };
+
+  window.revokeUser = async (email) => {
+    if (!confirm(`${email} 의 접근 권한을 취소할까요?`)) return;
+    await deleteDoc(doc(db, 'allowed_users', email));
+    loadAllowedUsers();
+  };
+</script>
+
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, 'Apple SD Gothic Neo', 'Pretendard', sans-serif;
+    background: #0B1220;
+    color: #E8EDF5;
+    min-height: 100vh;
+  }
+
+  .screen { display: none; min-height: 100vh; }
+  .screen.active { display: flex; flex-direction: column; }
+
+  /* ── 로그인 ── */
+  #login-screen {
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .login-card {
+    background: #131C2E;
+    border: 1px solid #1E2D47;
+    border-radius: 16px;
+    padding: 48px 40px;
+    width: 100%;
+    max-width: 400px;
+    text-align: center;
+  }
+
+  .login-badge {
+    display: inline-block;
+    background: #0D3B6E;
+    color: #5BA4CF;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    margin-bottom: 20px;
+    text-transform: uppercase;
+  }
+
+  .login-title {
+    font-size: 22px;
+    font-weight: 700;
+    color: #E8EDF5;
+    margin-bottom: 6px;
+    line-height: 1.4;
+  }
+
+  .login-sub {
+    font-size: 13px;
+    color: #5C7A9E;
+    margin-bottom: 36px;
+  }
+
+  .divider { height: 1px; background: #1E2D47; margin-bottom: 32px; }
+
+  .google-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    width: 100%;
+    padding: 14px 20px;
+    background: #1D5BA6;
+    border: none;
+    border-radius: 10px;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .google-btn:hover { background: #1a5296; }
+
+  .google-icon {
+    width: 22px; height: 22px;
+    background: white; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; color: #1D5BA6;
+  }
+
+  .login-notice { margin-top: 20px; font-size: 12px; color: #3A5070; line-height: 1.6; }
+
+  /* ── 권한 없음 ── */
+  #denied-screen {
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .denied-card {
+    background: #131C2E;
+    border: 1px solid #3B1A1A;
+    border-radius: 16px;
+    padding: 48px 40px;
+    width: 100%; max-width: 400px;
+    text-align: center;
+  }
+
+  .denied-icon { font-size: 40px; margin-bottom: 16px; }
+  .denied-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+  .denied-sub { font-size: 13px; color: #5C7A9E; margin-bottom: 24px; line-height: 1.6; }
+
+  .outline-btn {
+    padding: 10px 24px;
+    background: transparent;
+    border: 1px solid #3A5070;
+    border-radius: 8px;
+    color: #5C7A9E;
+    font-size: 13px;
+    cursor: pointer;
+  }
+
+  /* ── 앱 ── */
+  #app-screen { flex-direction: column; }
+
+  .app-header {
+    background: #131C2E;
+    border-bottom: 1px solid #1E2D47;
+    padding: 0 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 56px;
+    position: sticky; top: 0; z-index: 100;
+  }
+
+  .header-left { display: flex; flex-direction: column; }
+  .header-title { font-size: 15px; font-weight: 700; }
+  .header-sub   { font-size: 11px; color: #3A5070; }
+
+  .header-right { display: flex; align-items: center; gap: 10px; }
+
+  .user-avatar {
+    width: 32px; height: 32px;
+    background: #1D5BA6; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700;
+  }
+
+  .logout-small {
+    font-size: 11px; color: #3A5070;
+    cursor: pointer; background: none; border: none; padding: 4px 8px;
+  }
+
+  /* ── 탭 ── */
+  .tab-bar {
+    background: #131C2E;
+    border-bottom: 1px solid #1E2D47;
+    display: flex; overflow-x: auto;
+    padding: 0 12px;
+    scrollbar-width: none;
+  }
+
+  .tab-bar::-webkit-scrollbar { display: none; }
+
+  .tab-btn {
+    flex-shrink: 0;
+    padding: 14px 14px;
+    font-size: 13px; font-weight: 500;
+    color: #3A5070;
+    background: none; border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer; white-space: nowrap;
+    transition: color 0.2s;
+  }
+
+  .tab-btn.active { color: #5BA4CF; border-bottom-color: #1D5BA6; font-weight: 700; }
+
+  /* ── 콘텐츠 ── */
+  .tab-content {
+    display: none;
+    padding: 20px 16px;
+    max-width: 480px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .tab-content.active { display: block; }
+
+  .coming-soon {
+    text-align: center; padding: 60px 20px;
+    color: #3A5070; font-size: 14px; line-height: 2;
+  }
+
+  .coming-soon .icon { font-size: 32px; }
+
+  /* ── 접근 관리 ── */
+  .section-title {
+    font-size: 11px; font-weight: 700;
+    color: #3A5070; letter-spacing: 1px;
+    text-transform: uppercase;
+    margin: 20px 0 10px;
+  }
+
+  .section-title:first-child { margin-top: 0; }
+
+  .user-item {
+    background: #131C2E;
+    border: 1px solid #1E2D47;
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex; align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+
+  .user-info { display: flex; flex-direction: column; gap: 3px; }
+  .user-email { font-size: 13px; color: #E8EDF5; font-weight: 500; }
+  .user-role  { font-size: 11px; color: #3A5070; }
+
+  .role-badge {
+    font-size: 11px; font-weight: 600;
+    padding: 3px 10px; border-radius: 20px;
+    background: #0D3B6E; color: #5BA4CF;
+  }
+
+  .approve-btn {
+    font-size: 12px; font-weight: 600;
+    padding: 6px 14px; border-radius: 6px;
+    border: none; background: #1D5BA6; color: #fff;
+    cursor: pointer;
+  }
+
+  .revoke-btn {
+    font-size: 12px; font-weight: 600;
+    padding: 6px 14px; border-radius: 6px;
+    border: 1px solid #3B1A1A; background: transparent; color: #7f4040;
+    cursor: pointer;
+  }
+
+  #no-request { font-size: 13px; color: #3A5070; padding: 12px 0; }
+</style>
+</head>
+<body>
+
+<!-- ① 로그인 화면 -->
+<div id="login-screen" class="screen">
+  <div class="login-card">
+    <div class="login-badge">Admin Only</div>
+    <div class="login-title">P4 Ph2 (FAB)<br>관리자 페이지</div>
+    <div class="login-sub">귀뚜라미범양냉방 · 승인된 계정만 접근 가능</div>
+    <div class="divider"></div>
+    <button class="google-btn" onclick="doLogin()">
+      <div class="google-icon">G</div>
+      Google 계정으로 로그인
+    </button>
+    <div class="login-notice">승인되지 않은 계정은<br>로그인 후 접근이 차단됩니다.</div>
+  </div>
+</div>
+
+<!-- ② 권한 없음 화면 -->
+<div id="denied-screen" class="screen">
+  <div class="denied-card">
+    <div class="denied-icon">🔒</div>
+    <div class="denied-title">접근 권한이 없습니다</div>
+    <div class="denied-sub">승인된 계정만 접근할 수 있습니다.<br>관리자에게 접근 권한을 요청하세요.<br><br>로그인 시도가 관리자에게 통보됩니다.</div>
+    <button class="outline-btn" onclick="doLogout()">로그아웃</button>
+  </div>
+</div>
+
+<!-- ③ 메인 앱 -->
+<div id="app-screen" class="screen">
+  <div class="app-header">
+    <div class="header-left">
+      <div class="header-title">P4 Ph2 (FAB) 관리자</div>
+      <div class="header-sub">귀뚜라미범양냉방</div>
+    </div>
+    <div class="header-right">
+      <div class="user-avatar" id="user-initial">?</div>
+      <button class="logout-small" onclick="doLogout()">로그아웃</button>
+    </div>
+  </div>
+
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab(this,'tab-auth')">👤 접근 관리</button>
+    <button class="tab-btn" onclick="switchTab(this,'tab-progress')">📊 공정 정산</button>
+    <button class="tab-btn" onclick="switchTab(this,'tab-manday')">🔧 공수 집계</button>
+    <button class="tab-btn" onclick="switchTab(this,'tab-invoice')">📄 정산서</button>
+    <button class="tab-btn" onclick="switchTab(this,'tab-salary')">💰 급여 관리</button>
+  </div>
+
+  <!-- 접근 관리 탭 -->
+  <div class="tab-content active" id="tab-auth">
+    <div class="section-title">승인된 사용자</div>
+    <div id="allowed-list"></div>
+
+    <div class="section-title">접근 요청 대기</div>
+    <div id="request-list"></div>
+    <div id="no-request">대기 중인 요청이 없습니다.</div>
+  </div>
+
+  <!-- 나머지 탭 (추후 구현) -->
+  <div class="tab-content" id="tab-progress">
+    <div class="coming-soon">
+      <div class="icon">📊</div><br>
+      월말 누계 공정율<br>
+      <span style="font-size:12px;">2단계에서 구현 예정</span>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab-manday">
+    <div class="coming-soon">
+      <div class="icon">🔧</div><br>
+      월간 기술인 공수 집계<br>
+      <span style="font-size:12px;">3단계에서 구현 예정</span>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab-invoice">
+    <div class="coming-soon">
+      <div class="icon">📄</div><br>
+      거래처 정산서 발행<br>
+      <span style="font-size:12px;">4단계에서 구현 예정</span>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab-salary">
+    <div class="coming-soon">
+      <div class="icon">💰</div><br>
+      직원 급여 관리<br>
+      <span style="font-size:12px;">5단계에서 구현 예정</span>
+    </div>
+  </div>
+</div>
+
+<script>
+  function showScreen(name) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(name + '-screen').classList.add('active');
+  }
+
+  function switchTab(btn, tabId) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.getElementById(tabId).classList.add('active');
+  }
+</script>
+</body>
+</html>
