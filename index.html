@@ -878,6 +878,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
 
 <script>
+
 function calcAnnualSalary(hourly, empType) {
   if (!hourly) return { basic:0, fixedOt:0, fixedNight:0, weekly:0, total:0, annual:0 };
   const h = Number(hourly);
@@ -2335,91 +2336,106 @@ window.renderLaborMain = () => {
 
 window.renderLaborRegister = async () => {
   const el = document.getElementById('tab-labor');
-  laborForm2 = { workerId:'', name:'', jumin:'', phone:'', address:'', dept:'', rank:'', job:'', startDate:'', endDate:'', contractDate:'', salary:'', signData:null };
+  laborForm2 = { workerId:'', name:'', jumin:'', phone:'', address:'', dept:'', rank:'',
+    job:'', empType:'field', startDate:'', endDate:'', contractDate:'', hourly:'', salary:'', signData:null };
   const workers = await getWorkersList();
   window._laborWorkers2 = workers;
-
-  const renderForm = () => {
-    // sal 변수는 시급 기반으로 대체됨
-    el.innerHTML = wrap2(`
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
-        ${backBtn2('renderLaborMain()')}
-        <span style="font-size:13px;font-weight:700;color:${C2.text};">근로계약서 작성</span>
-      </div>
-      ${card2('👤 근로자 선택', `
-        <select onchange="laborWorkerSelect2(this.value)" style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:10px 12px;font-size:13px;font-weight:600;color:${C2.blue};background:#E8F0FB;cursor:pointer;">
-          <option value="">근로자를 선택하세요</option>
-          ${workers.map(w=>`<option value="${w.id}" ${laborForm2.workerId===w.id?'selected':''}>${w.empNo||'-'} · ${w.name} (${w.rank||''})</option>`).join('')}
-        </select>
-        ${laborForm2.name?`<div style="margin-top:10px;background:#F8FAFD;border-radius:8px;overflow:hidden;">
-          ${[['이름',laborForm2.name],['소속',laborForm2.dept||'-'],['직급',laborForm2.rank||'-'],['주소',laborForm2.address||'-']].map(([l,v])=>`
-            <div style="display:flex;padding:7px 12px;border-bottom:1px solid #F0F4FA;font-size:12px;">
-              <span style="color:${C2.sub};min-width:60px;font-weight:600;">${l}</span>
-              <span style="color:${C2.text};">${v}</span>
-            </div>`).join('')}
-        </div>`:''}
-      `)}
-      ${laborForm2.name ? `
-      ${card2('📅 계약 기간', `
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
-          ${field2('시작일',`<input type="date" value="${laborForm2.startDate}" onchange="laborForm2.startDate=this.value" style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:9px 8px;font-size:12px;box-sizing:border-box;">`)}
-          ${field2('종료일',`<input type="date" value="${laborForm2.endDate}" onchange="laborForm2.endDate=this.value" style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:9px 8px;font-size:12px;box-sizing:border-box;">`)}
-        </div>
-        ${field2('계약 체결일',`<input type="date" value="${laborForm2.contractDate}" onchange="laborForm2.contractDate=this.value" ${inp2Style}>`)}
-      `)}
-      ${card2('💼 담당 업무', field2('담당업무',`<input type="text" value="${laborForm2.job}" placeholder="담당 업무 입력" oninput="laborForm2.job=this.value" ${inp2Style}>`))}
-      ${card2('💰 임금', `
-        ${field2('시급 (원)', `<input type="number" value="${laborForm2.hourly}" placeholder="시급 입력 (숫자만)"
-            oninput="laborForm2.hourly=this.value;laborUpdateSalaryPreview();" ${inp2Style}>`)}
-        <div id="labor-sal-preview2">
-          ${laborForm2.hourly ? laborSalaryPreviewHtml(laborForm2) : ''}
-        </div>
-      `)}
-      ${card2('✍️ 근로자 서명', `
-        <div style="text-align:center;">
-          ${laborForm2.signData
-            ?`<img src="${laborForm2.signData}" style="width:160px;height:60px;object-fit:contain;border:1px solid #DDE4EF;border-radius:8px;"/><br/>
-              <button onclick="laborForm2.signData=null;laborRefreshForm2();" style="font-size:11px;color:${C2.mute};background:none;border:none;cursor:pointer;text-decoration:underline;">지우기</button>`
-            :`<button onclick="laborOpenSign2();" style="padding:10px 24px;background:#E8F0FB;border:2px dashed #1D5BA6;border-radius:10px;color:#1D5BA6;font-size:13px;font-weight:600;cursor:pointer;">✍️ 서명하기</button>`}
-        </div>
-      `)}
-      <div style="display:flex;gap:8px;">
-        <button onclick="laborPreview2();" style="flex:1;padding:13px;background:${C2.sub};border:none;border-radius:12px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">📄 미리보기</button>
-        <button onclick="laborSave2();" style="flex:1;padding:13px;background:${C2.green};border:none;border-radius:12px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">✅ 확정 저장</button>
-      </div>
-      <!-- 서명 팝업 -->
-      <div id="labor-sign2-popup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
-        <div style="background:#fff;border-radius:16px;padding:24px;width:320px;text-align:center;">
-          <div style="font-size:14px;font-weight:700;color:${C2.text};margin-bottom:16px;">✍️ 서명</div>
-          <div style="position:relative;border:1px solid #DDE4EF;border-radius:8px;overflow:hidden;background:#FAFCFF;margin-bottom:12px;">
-            <canvas id="labor-sign2-canvas" width="272" height="100" style="display:block;cursor:crosshair;touch-action:none;"></canvas>
-            <div id="labor-sign2-hint" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;">
-              <span style="font-size:12px;color:${C2.mute};">손가락으로 서명하세요</span>
-            </div>
-          </div>
-          <div style="display:flex;gap:8px;">
-            <button onclick="laborClearSign2()" style="flex:1;padding:10px;background:#F8FAFD;border:1px solid #DDE4EF;border-radius:8px;font-size:13px;cursor:pointer;color:${C2.sub};">지우기</button>
-            <button onclick="laborCancelSign2()" style="flex:1;padding:10px;background:#F8FAFD;border:1px solid #DDE4EF;border-radius:8px;font-size:13px;cursor:pointer;color:${C2.sub};">취소</button>
-            <button onclick="laborSaveSign2()" style="flex:1;padding:10px;background:${C2.blue};border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;color:#fff;">확인</button>
-          </div>
-        </div>
-      </div>` : ''}
-    `);
-    setTimeout(()=>{ const p=document.getElementById('labor-sign2-popup'); if(p)p.style.display='none'; },50);
-  };
-
-  window.laborRefreshForm2 = renderForm;
-  window.laborWorkerSelect2 = (wid) => {
-    const w=(window._laborWorkers2||[]).find(x=>x.id===wid);
-    if(!w)return;
-    laborForm2.workerId=wid; laborForm2.name=w.name||''; laborForm2.jumin=w.jumin||'';
-    laborForm2.phone=w.phone||''; laborForm2.address=w.address||'';
-    laborForm2.dept=w.dept||''; laborForm2.rank=w.rank||''; laborForm2.job=w.job||'';
-    laborForm2.empType=w.empType||'field';
-    if(window.laborRefreshForm2) window.laborRefreshForm2();
-  };
-  renderForm();
+  window.laborRefreshForm2 = () => renderLaborForm(el, workers);
+  renderLaborForm(el, workers);
 };
+
+function renderLaborForm(el, workers) {
+  const sal = laborSalaryPreviewHtml(laborForm2);
+  el.innerHTML = wrap2(`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+      ${backBtn2('renderLaborMain()')}
+      <span style="font-size:13px;font-weight:700;color:${C2.text};">근로계약서 작성</span>
+    </div>
+    ${card2('👤 근로자 선택', `
+      <select onchange="laborWorkerSelect2(this.value)"
+        style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:10px 12px;font-size:13px;font-weight:600;color:${C2.blue};background:#E8F0FB;cursor:pointer;">
+        <option value="">근로자를 선택하세요</option>
+        ${(workers||[]).map(w=>`<option value="${w.id}" ${laborForm2.workerId===w.id?'selected':''}>${w.empNo||'-'} · ${w.name} (${w.rank||''})</option>`).join('')}
+      </select>
+      ${laborForm2.name?`<div style="margin-top:10px;background:#F8FAFD;border-radius:8px;overflow:hidden;">
+        ${[['이름',laborForm2.name],['소속',laborForm2.dept||'-'],['직급',laborForm2.rank||'-'],
+           ['구분',laborForm2.empType==='office'?'💼 사무직':'🔧 현장직'],
+           ['주소',laborForm2.address||'-']].map(([l,v])=>`
+          <div style="display:flex;padding:7px 12px;border-bottom:1px solid #F0F4FA;font-size:12px;">
+            <span style="color:${C2.sub};min-width:60px;font-weight:600;">${l}</span>
+            <span style="color:${C2.text};">${v}</span>
+          </div>`).join('')}
+      </div>`:''}
+    `)}
+    ${laborForm2.name?`
+    ${card2('📅 계약 기간', `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+        ${field2('시작일',`<input type="date" value="${laborForm2.startDate}" onchange="laborForm2.startDate=this.value" style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:9px 8px;font-size:12px;box-sizing:border-box;">`)}
+        ${field2('종료일',`<input type="date" value="${laborForm2.endDate}" onchange="laborForm2.endDate=this.value" style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:9px 8px;font-size:12px;box-sizing:border-box;">`)}
+      </div>
+      ${field2('계약 체결일',`<input type="date" value="${laborForm2.contractDate}" onchange="laborForm2.contractDate=this.value" ${inp2Style}>`)}
+    `)}
+    ${card2('💼 담당 업무', field2('담당업무',`<input type="text" value="${laborForm2.job}" placeholder="담당 업무 입력" oninput="laborForm2.job=this.value" ${inp2Style}>`))}
+    ${card2('💰 시급 입력', `
+      ${field2('시급 (원)',`<input type="number" value="${laborForm2.hourly}" placeholder="시급 입력 (숫자만)"
+          oninput="laborForm2.hourly=this.value;laborUpdateSalaryPreview();" ${inp2Style}>`)}
+      <div id="labor-sal-preview2">${sal}</div>
+    `)}
+    ${card2('✍️ 근로자 서명', `
+      <div style="text-align:center;">
+        ${laborForm2.signData
+          ?`<img src="${laborForm2.signData}" style="width:160px;height:60px;object-fit:contain;border:1px solid #DDE4EF;border-radius:8px;"/>
+             <br/><button onclick="laborForm2.signData=null;window.laborRefreshForm2&&window.laborRefreshForm2();" style="font-size:11px;color:${C2.mute};background:none;border:none;cursor:pointer;text-decoration:underline;">지우기</button>`
+          :`<button onclick="laborOpenSign2();" style="padding:10px 24px;background:#E8F0FB;border:2px dashed #1D5BA6;border-radius:10px;color:#1D5BA6;font-size:13px;font-weight:600;cursor:pointer;">✍️ 서명하기</button>`}
+      </div>
+    `)}
+    <div style="display:flex;gap:8px;">
+      <button onclick="laborPreview2();" style="flex:1;padding:13px;background:${C2.sub};border:none;border-radius:12px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">📄 미리보기</button>
+      <button onclick="laborSave2();" style="flex:1;padding:13px;background:${C2.green};border:none;border-radius:12px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">✅ 확정 저장</button>
+    </div>
+    <!-- 서명 팝업 -->
+    <div id="labor-sign2-popup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
+      <div style="background:#fff;border-radius:16px;padding:24px;width:320px;text-align:center;">
+        <div style="font-size:14px;font-weight:700;color:${C2.text};margin-bottom:16px;">✍️ 서명</div>
+        <div style="position:relative;border:1px solid #DDE4EF;border-radius:8px;overflow:hidden;background:#FAFCFF;margin-bottom:12px;">
+          <canvas id="labor-sign2-canvas" width="272" height="100" style="display:block;cursor:crosshair;touch-action:none;"></canvas>
+          <div id="labor-sign2-hint" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;">
+            <span style="font-size:12px;color:${C2.mute};">손가락으로 서명하세요</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="laborClearSign2()" style="flex:1;padding:10px;background:#F8FAFD;border:1px solid #DDE4EF;border-radius:8px;font-size:13px;cursor:pointer;color:${C2.sub};">지우기</button>
+          <button onclick="laborCancelSign2()" style="flex:1;padding:10px;background:#F8FAFD;border:1px solid #DDE4EF;border-radius:8px;font-size:13px;cursor:pointer;color:${C2.sub};">취소</button>
+          <button onclick="laborSaveSign2()" style="flex:1;padding:10px;background:${C2.blue};border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;color:#fff;">확인</button>
+        </div>
+      </div>
+    </div>`:''}`);
+  setTimeout(()=>{const p=document.getElementById('labor-sign2-popup');if(p)p.style.display='none';},50);
+}
+
+window.laborWorkerSelect2 = (wid) => {
+  const w = (window._laborWorkers2||[]).find(x=>x.id===wid);
+  if (!w) return;
+  laborForm2.workerId = wid;
+  laborForm2.name     = w.name    || '';
+  laborForm2.jumin    = w.jumin   || '';
+  laborForm2.phone    = w.phone   || '';
+  laborForm2.address  = w.address || '';
+  laborForm2.dept     = w.dept    || '';
+  laborForm2.rank     = w.rank    || '';
+  laborForm2.job      = w.job     || '';
+  laborForm2.empType  = w.empType || 'field';
+  if (window.laborRefreshForm2) window.laborRefreshForm2();
+};
+
+window.laborUpdateSalaryPreview = () => {
+  const sal = calcAnnualSalary(Number(laborForm2.hourly||0), laborForm2.empType||'field');
+  laborForm2.salary = sal.annual;
+  const el = document.getElementById('labor-sal-preview2');
+  if (!el) return;
+  el.innerHTML = laborSalaryPreviewHtml(laborForm2);
+};
+
 
 window.laborOpenSign2 = () => {
   const p=document.getElementById('labor-sign2-popup'); if(!p)return; p.style.display='flex';
@@ -2679,150 +2695,162 @@ window.renderAnnualMain = () => {
 };
 
 window.renderAnnualRegister = async () => {
-  const el=document.getElementById('tab-annual');
-  annualForm2={workerId:'',name:'',jumin:'',address:'',dept:'',rank:'',startDate:'2026-06-02',endDate:'2027-05-31',contractDate:'',salary:'',signData:null};
-  const workers=await getWorkersList();
-  window._annualWorkers2=workers;
+  const el = document.getElementById('tab-annual');
+  annualForm2 = { workerId:'', name:'', jumin:'', address:'', dept:'', rank:'',
+    empType:'field', startDate:'2026-06-02', endDate:'2027-05-31',
+    contractDate:'', hourly:'', salary:'', signData:null };
+  const workers = await getWorkersList();
+  window._annualWorkers2 = workers;
+  window.annualRefreshForm2 = () => renderAnnualForm(el, workers);
+  renderAnnualForm(el, workers);
+};
 
-  const renderAForm=()=>{
-    const sal=calcAnnualSalary(Number(annualForm2.hourly||0), annualForm2.empType||'field');
-    const salPreview = (() => {
+function renderAnnualForm(el, workers) {
+  const sal = calcAnnualSalary(Number(annualForm2.hourly||0), annualForm2.empType||'field');
+  if (annualForm2.hourly) annualForm2.salary = sal.annual;
+
+  const isOff = annualForm2.empType === 'office';
+  const salPreview = (() => {
     if (!annualForm2.hourly) return '';
-    const isOff = annualForm2.empType==='office';
     const rows = isOff
-      ? [['기본근로수당',sal.basic,false],['고정연장수당',sal.fixedOt,false],['고정야간수당',0,true],['주휴수당',sal.weekly,false],['월 지급계',sal.total,false],['계약연봉 (월×12)',sal.annual,false]]
-      : [['기본근로수당',sal.basic,false],['고정연장수당',0,true],['고정야간수당',sal.fixedNight,false],['주휴수당',sal.weekly,false],['월 지급계',sal.total,false],['계약연봉 (월×12)',sal.annual,false]];
+      ? [['기본근로수당',sal.basic,false],['고정연장수당',sal.fixedOt,false],['고정야간수당',0,true],
+         ['주휴수당',sal.weekly,false],['월 지급계',sal.total,false],['계약연봉 (월×12)',sal.annual,false]]
+      : [['기본근로수당',sal.basic,false],['고정연장수당',0,true],['고정야간수당',sal.fixedNight,false],
+         ['주휴수당',sal.weekly,false],['월 지급계',sal.total,false],['계약연봉 (월×12)',sal.annual,false]];
     return '<div style="margin-top:8px;border-radius:8px;overflow:hidden;border:1px solid #DDE4EF;">'
       +'<div style="background:#1D5BA6;padding:6px 12px;font-size:11px;font-weight:700;color:#fff;">'+(isOff?'💼 사무직':'🔧 현장직')+' 급여 구성</div>'
       +rows.map(function(r){var l=r[0],v=r[1],z=r[2];var isTot=l.includes('지급계')||l.includes('연봉');
         return '<div style="display:flex;justify-content:space-between;padding:6px 12px;border-bottom:1px solid #F0F4FA;font-size:11px;background:'+(isTot?'#E8F0FB':'#fff')+';">'
-          +'<span style="color:#5C6F8A;">'+l+'</span><span style="color:'+(l.includes('연봉')?'#1D5BA6':isTot?'#1D5BA6':z?'#9AAABF':'#1A2540')+';font-weight:'+(isTot?700:400)+';margin-left:8px;">'+(z?'—':'₩'+Math.round(v).toLocaleString())+'</span></div>';
-      }).join('') + '</div>';
+          +'<span style="color:#5C6F8A;">'+l+'</span>'
+          +'<span style="color:'+(l.includes('연봉')?'#1D5BA6':isTot?'#1D5BA6':z?'#9AAABF':'#1A2540')+';font-weight:'+(isTot?700:400)+';margin-left:8px;">'+(z?'—':'₩'+Math.round(v).toLocaleString())+'</span></div>';
+      }).join('')+'</div>';
   })();
 
-    el.innerHTML=wrap2(`
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
-        ${backBtn2('renderAnnualMain()')}
-        <span style="font-size:13px;font-weight:700;color:${C2.text};">연봉계약서 작성</span>
-      </div>
-      ${card2('👤 근로자 선택',`
-        <select onchange="annualWorkerSelect2(this.value)" style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:10px 12px;font-size:13px;font-weight:600;color:${C2.blue};background:#E8F0FB;cursor:pointer;">
-          <option value="">근로자를 선택하세요</option>
-          ${workers.map(w=>`<option value="${w.id}" ${annualForm2.workerId===w.id?'selected':''}>${w.empNo||'-'} · ${w.name} (${w.rank||''})</option>`).join('')}
-        </select>
-        ${annualForm2.name?`<div style="margin-top:10px;background:#F8FAFD;border-radius:8px;overflow:hidden;">
-          ${[['이름',annualForm2.name],['소속',annualForm2.dept||'-'],['직급',annualForm2.rank||'-'],['주소',annualForm2.address||'-']].map(([l,v])=>`
-            <div style="display:flex;padding:7px 12px;border-bottom:1px solid #F0F4FA;font-size:12px;">
-              <span style="color:${C2.sub};min-width:60px;font-weight:600;">${l}</span><span style="color:${C2.text};">${v}</span>
-            </div>`).join('')}
-        </div>`:''}
-      `)}
-      ${annualForm2.name?`
-      ${card2('📅 계약 기간',`
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
-          ${field2('시작일',`<input type="date" value="${annualForm2.startDate}" onchange="annualForm2.startDate=this.value;const s=new Date(this.value);s.setFullYear(s.getFullYear()+1);s.setDate(s.getDate()-1);annualForm2.endDate=s.toISOString().slice(0,10);annualRefreshForm2();" style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:9px 8px;font-size:12px;box-sizing:border-box;">`)}
-          ${field2('종료일 (자동 1년)',`<input type="date" value="${annualForm2.endDate}" readonly style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:9px 8px;font-size:12px;box-sizing:border-box;background:#F4F7FB;color:#5C6F8A;">`)}
-        </div>
-        ${field2('계약일자',`<input type="date" value="${annualForm2.contractDate}" onchange="annualForm2.contractDate=this.value" ${inp2Style}>`)}
-      `)}
-      ${card2('💰 시급 입력',`
-        ${field2('시급 (원)',`<input type="number" value="${annualForm2.hourly}" placeholder="시급 입력 (숫자만)"
-            oninput="annualForm2.hourly=this.value;annualUpdateSalaryPreview();" ${inp2Style}>
-          <div id="annual-sal-preview2">${salPreview}</div>
-          ${annualForm2.salary?'<div style="font-size:11px;color:#1D5BA6;margin-top:4px;font-weight:600;">→ 계약연봉: ₩'+Number(annualForm2.salary).toLocaleString()+'원 (자동 계산)</div>':''}`)}
-      `)}
-      ${card2('✍️ 서명',`
-        <div style="text-align:center;">
-          ${annualForm2.signData
-            ?`<img src="${annualForm2.signData}" style="width:160px;height:60px;object-fit:contain;border:1px solid #DDE4EF;border-radius:8px;"/><br/>
-               <button onclick="annualForm2.signData=null;annualRefreshForm2();" style="font-size:11px;color:${C2.mute};background:none;border:none;cursor:pointer;text-decoration:underline;">지우기</button>`
-            :`<button onclick="annualOpenSign2();" style="padding:10px 24px;background:#E8F0FB;border:2px dashed #1D5BA6;border-radius:10px;color:#1D5BA6;font-size:13px;font-weight:600;cursor:pointer;">✍️ 서명하기</button>`}
-        </div>
-      `)}
-      <div style="display:flex;gap:8px;">
-        <button onclick="annualPreview2();" style="flex:1;padding:13px;background:${C2.sub};border:none;border-radius:12px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">📄 미리보기</button>
-        <button onclick="annualSave2();" style="flex:1;padding:13px;background:${C2.green};border:none;border-radius:12px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">✅ 확정 저장</button>
-      </div>
-      <div id="annual-sign2-popup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
-        <div style="background:#fff;border-radius:16px;padding:24px;width:320px;text-align:center;">
-          <div style="font-size:14px;font-weight:700;color:${C2.text};margin-bottom:16px;">✍️ 서명</div>
-          <div style="position:relative;border:1px solid #DDE4EF;border-radius:8px;overflow:hidden;background:#FAFCFF;margin-bottom:12px;">
-            <canvas id="annual-sign2-canvas" width="272" height="100" style="display:block;cursor:crosshair;touch-action:none;"></canvas>
-            <div id="annual-sign2-hint" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;"><span style="font-size:12px;color:${C2.mute};">손가락으로 서명하세요</span></div>
-          </div>
-          <div style="display:flex;gap:8px;">
-            <button onclick="annualClearSign2()" style="flex:1;padding:10px;background:#F8FAFD;border:1px solid #DDE4EF;border-radius:8px;font-size:13px;cursor:pointer;color:${C2.sub};">지우기</button>
-            <button onclick="annualCancelSign2()" style="flex:1;padding:10px;background:#F8FAFD;border:1px solid #DDE4EF;border-radius:8px;font-size:13px;cursor:pointer;color:${C2.sub};">취소</button>
-            <button onclick="annualSaveSign2()" style="flex:1;padding:10px;background:${C2.blue};border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;color:#fff;">확인</button>
-          </div>
-        </div>
+  el.innerHTML = wrap2(`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+      ${backBtn2('renderAnnualMain()')}
+      <span style="font-size:13px;font-weight:700;color:${C2.text};">연봉계약서 작성</span>
+    </div>
+    ${card2('👤 근로자 선택', `
+      <select onchange="annualWorkerSelect2(this.value)"
+        style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:10px 12px;font-size:13px;font-weight:600;color:${C2.blue};background:#E8F0FB;cursor:pointer;">
+        <option value="">근로자를 선택하세요</option>
+        ${(workers||[]).map(w=>`<option value="${w.id}" ${annualForm2.workerId===w.id?'selected':''}>${w.empNo||'-'} · ${w.name} (${w.rank||''})</option>`).join('')}
+      </select>
+      ${annualForm2.name?`<div style="margin-top:10px;background:#F8FAFD;border-radius:8px;overflow:hidden;">
+        ${[['이름',annualForm2.name],['소속',annualForm2.dept||'-'],['직급',annualForm2.rank||'-'],
+           ['구분',annualForm2.empType==='office'?'💼 사무직':'🔧 현장직'],
+           ['주소',annualForm2.address||'-']].map(([l,v])=>`
+          <div style="display:flex;padding:7px 12px;border-bottom:1px solid #F0F4FA;font-size:12px;">
+            <span style="color:${C2.sub};min-width:60px;font-weight:600;">${l}</span>
+            <span style="color:${C2.text};">${v}</span>
+          </div>`).join('')}
       </div>`:''}
-    `);
-    setTimeout(()=>{const p=document.getElementById('annual-sign2-popup');if(p)p.style.display='none';},50);
-  };
+    `)}
+    ${annualForm2.name?`
+    ${card2('📅 계약 기간', `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+        ${field2('시작일',`<input type="date" value="${annualForm2.startDate}"
+          onchange="annualForm2.startDate=this.value;const s=new Date(this.value);s.setFullYear(s.getFullYear()+1);s.setDate(s.getDate()-1);annualForm2.endDate=s.toISOString().slice(0,10);window.annualRefreshForm2&&window.annualRefreshForm2();"
+          style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:9px 8px;font-size:12px;box-sizing:border-box;">`)}
+        ${field2('종료일 (자동 1년)',`<input type="date" value="${annualForm2.endDate}" readonly
+          style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:9px 8px;font-size:12px;box-sizing:border-box;background:#F4F7FB;color:#5C6F8A;">`)}
+      </div>
+      ${field2('계약일자',`<input type="date" value="${annualForm2.contractDate}" onchange="annualForm2.contractDate=this.value" ${inp2Style}>`)}
+    `)}
+    ${card2('💰 시급 입력', `
+      ${field2('시급 (원)',`<input type="number" value="${annualForm2.hourly}" placeholder="시급 입력 (숫자만)"
+          oninput="annualForm2.hourly=this.value;annualUpdateSalaryPreview();" ${inp2Style}>`)}
+      <div id="annual-sal-preview2">${salPreview}</div>
+      ${annualForm2.salary?'<div style="font-size:12px;color:#1D5BA6;margin-top:6px;font-weight:700;">→ 계약연봉: ₩'+Number(annualForm2.salary).toLocaleString()+'원</div>':''}
+    `)}
+    ${card2('✍️ 서명', `
+      <div style="text-align:center;">
+        ${annualForm2.signData
+          ?`<img src="${annualForm2.signData}" style="width:160px;height:60px;object-fit:contain;border:1px solid #DDE4EF;border-radius:8px;"/>
+             <br/><button onclick="annualForm2.signData=null;window.annualRefreshForm2&&window.annualRefreshForm2();" style="font-size:11px;color:${C2.mute};background:none;border:none;cursor:pointer;text-decoration:underline;">지우기</button>`
+          :`<button onclick="annualOpenSign2();" style="padding:10px 24px;background:#E8F0FB;border:2px dashed #1D5BA6;border-radius:10px;color:#1D5BA6;font-size:13px;font-weight:600;cursor:pointer;">✍️ 서명하기</button>`}
+      </div>
+    `)}
+    <div style="display:flex;gap:8px;">
+      <button onclick="annualPreview2();" style="flex:1;padding:13px;background:${C2.sub};border:none;border-radius:12px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">📄 미리보기</button>
+      <button onclick="annualSave2();" style="flex:1;padding:13px;background:${C2.green};border:none;border-radius:12px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">✅ 확정 저장</button>
+    </div>
+    <div id="annual-sign2-popup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
+      <div style="background:#fff;border-radius:16px;padding:24px;width:320px;text-align:center;">
+        <div style="font-size:14px;font-weight:700;color:${C2.text};margin-bottom:16px;">✍️ 서명</div>
+        <div style="position:relative;border:1px solid #DDE4EF;border-radius:8px;overflow:hidden;background:#FAFCFF;margin-bottom:12px;">
+          <canvas id="annual-sign2-canvas" width="272" height="100" style="display:block;cursor:crosshair;touch-action:none;"></canvas>
+          <div id="annual-sign2-hint" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;"><span style="font-size:12px;color:${C2.mute};">손가락으로 서명하세요</span></div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="annualClearSign2()" style="flex:1;padding:10px;background:#F8FAFD;border:1px solid #DDE4EF;border-radius:8px;font-size:13px;cursor:pointer;color:${C2.sub};">지우기</button>
+          <button onclick="annualCancelSign2()" style="flex:1;padding:10px;background:#F8FAFD;border:1px solid #DDE4EF;border-radius:8px;font-size:13px;cursor:pointer;color:${C2.sub};">취소</button>
+          <button onclick="annualSaveSign2()" style="flex:1;padding:10px;background:${C2.blue};border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;color:#fff;">확인</button>
+        </div>
+      </div>
+    </div>`:''}`);
+  setTimeout(()=>{const p=document.getElementById('annual-sign2-popup');if(p)p.style.display='none';},50);
+}
 
-  window.annualRefreshForm2=renderAForm;
+window.annualWorkerSelect2 = async (wid) => {
+  const w = (window._annualWorkers2||[]).find(x=>x.id===wid);
+  if (!w) return;
+  annualForm2.workerId = wid;
+  annualForm2.name     = w.name    || '';
+  annualForm2.jumin    = w.jumin   || '';
+  annualForm2.address  = w.address || '';
+  annualForm2.dept     = w.dept    || '';
+  annualForm2.rank     = w.rank    || '';
+  annualForm2.empType  = w.empType || 'field';
+  annualForm2.hourly   = '';
+  annualForm2.salary   = '';
+
+  // 근로계약서에서 최신 시급 자동 불러오기
+  if (window._db) {
+    try {
+      const { getDocs, collection } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+      const snap = await getDocs(collection(window._db, `labor_contracts/${wid}/contracts`));
+      let latestDate = '';
+      snap.forEach(d => {
+        const dd = d.data();
+        if ((dd.contractDate||'') > latestDate) {
+          latestDate = dd.contractDate || '';
+          if (dd.hourly)  annualForm2.hourly  = dd.hourly;
+          if (dd.salary)  annualForm2.salary  = dd.salary;
+        }
+      });
+    } catch(e) {}
+  }
+  if (window.annualRefreshForm2) window.annualRefreshForm2();
+};
+
 window.annualUpdateSalaryPreview = () => {
   const sal = calcAnnualSalary(Number(annualForm2.hourly||0), annualForm2.empType||'field');
+  annualForm2.salary = sal.annual;
   const el = document.getElementById('annual-sal-preview2');
   if (!el) return;
   if (!annualForm2.hourly) { el.innerHTML=''; return; }
-  annualForm2.salary = sal.annual;
-
-  const isOffice = annualForm2.empType === 'office';
-  const empLabel = isOffice ? '💼 사무직' : '🔧 현장직';
-  const rows = isOffice
-    ? [['기본근로수당 (시급×8×5×4.345)', sal.basic, false],
-       ['고정연장수당 (시급×12×4.345)', sal.fixedOt, false],
-       ['고정야간수당', 0, true],
-       ['주휴수당 (시급×8×4.345)', sal.weekly, false],
-       ['월 지급계', sal.total, false],
-       ['계약연봉 (월×12)', sal.annual, false]]
-    : [['기본근로수당 (시급×8×5×4.345)', sal.basic, false],
-       ['고정연장수당', 0, true],
-       ['고정야간수당 (시급×0.5×8×5×4.345)', sal.fixedNight, false],
-       ['주휴수당 (시급×8×4.345)', sal.weekly, false],
-       ['월 지급계', sal.total, false],
-       ['계약연봉 (월×12)', sal.annual, false]];
-
+  const isOff = annualForm2.empType === 'office';
+  const rows = isOff
+    ? [['기본근로수당',sal.basic,false],['고정연장수당',sal.fixedOt,false],['고정야간수당',0,true],
+       ['주휴수당',sal.weekly,false],['월 지급계',sal.total,false],['계약연봉 (월×12)',sal.annual,false]]
+    : [['기본근로수당',sal.basic,false],['고정연장수당',0,true],['고정야간수당',sal.fixedNight,false],
+       ['주휴수당',sal.weekly,false],['월 지급계',sal.total,false],['계약연봉 (월×12)',sal.annual,false]];
   el.innerHTML = '<div style="margin-top:8px;border-radius:8px;overflow:hidden;border:1px solid #DDE4EF;">'
-    + '<div style="background:#1D5BA6;padding:7px 12px;font-size:11px;font-weight:700;color:#fff;">' + empLabel + ' 급여 구성</div>'
-    + rows.map(function(r){ var l=r[0],v=r[1],z=r[2];
-        var isTotal = l.includes('지급계')||l.includes('연봉');
-        return '<div style="display:flex;justify-content:space-between;padding:7px 12px;border-bottom:1px solid #F0F4FA;font-size:11px;background:'+(isTotal?'#E8F0FB':'#fff')+';"><span style="color:#5C6F8A;">'+l+'</span>'
-          +'<span style="color:'+(l.includes('연봉')?'#1D5BA6':isTotal?'#1D5BA6':z?'#9AAABF':'#1A2540')+';font-weight:'+(isTotal?700:400)+';">'+(z?'—':'₩'+Math.round(v).toLocaleString())+'</span></div>';
-      }).join('')
-    + '</div>';
+    +'<div style="background:#1D5BA6;padding:6px 12px;font-size:11px;font-weight:700;color:#fff;">'+(isOff?'💼 사무직':'🔧 현장직')+' 급여 구성</div>'
+    +rows.map(function(r){var l=r[0],v=r[1],z=r[2];var isTot=l.includes('지급계')||l.includes('연봉');
+      return '<div style="display:flex;justify-content:space-between;padding:6px 12px;border-bottom:1px solid #F0F4FA;font-size:11px;background:'+(isTot?'#E8F0FB':'#fff')+';">'
+        +'<span style="color:#5C6F8A;">'+l+'</span>'
+        +'<span style="color:'+(l.includes('연봉')?'#1D5BA6':isTot?'#1D5BA6':z?'#9AAABF':'#1A2540')+';font-weight:'+(isTot?700:400)+';margin-left:8px;">'+(z?'—':'₩'+Math.round(v).toLocaleString())+'</span></div>';
+    }).join('') + '</div>';
+  // 계약연봉 표시 업데이트
+  const salaryEl = el.nextElementSibling;
+  if (salaryEl && salaryEl.tagName === 'DIV') {
+    salaryEl.textContent = annualForm2.salary ? '→ 계약연봉: ₩'+Number(annualForm2.salary).toLocaleString()+'원' : '';
+  }
 };
 
-  window.annualWorkerSelect2=async(wid)=>{
-    const w=(window._annualWorkers2||[]).find(x=>x.id===wid);
-    if(!w)return;
-    annualForm2.workerId=wid; annualForm2.name=w.name||''; annualForm2.jumin=w.jumin||'';
-    annualForm2.address=w.address||''; annualForm2.dept=w.dept||''; annualForm2.rank=w.rank||'';
-    annualForm2.empType=w.empType||'field';
-    // 근로계약서에서 최신 연봉 자동 불러오기
-    if(window._db){
-      try{
-        const { getDocs, collection }=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-        const snap=await getDocs(collection(window._db,`labor_contracts/${wid}/contracts`));
-        let latestSalary=''; let latestDate='';
-        snap.forEach(d=>{
-          const dd=d.data();
-          if((dd.contractDate||'')>latestDate){ latestDate=dd.contractDate||''; latestSalary=dd.salary||''; }
-        });
-        if(latestSalary) annualForm2.salary=latestSalary;
-        // hourly도 불러오기
-        snap.forEach(d=>{
-          const dd=d.data();
-          if((dd.contractDate||'')==latestDate && dd.hourly) annualForm2.hourly=dd.hourly;
-        });
-      }catch(e){}
-    }
-    renderAForm();
-  };
-  renderAForm();
-};
 
 window.annualOpenSign2=()=>{const p=document.getElementById('annual-sign2-popup');if(!p)return;p.style.display='flex';
   setTimeout(()=>{annualSignCanvas2=document.getElementById('annual-sign2-canvas');if(!annualSignCanvas2)return;
@@ -2978,6 +3006,7 @@ window.annualDeleteContract2=async(wid,cid,wname)=>{
 };
 
 window.annualPreviewSaved2=(d)=>{annualForm2={...d};annualPreview2();};
+
 
 
 
