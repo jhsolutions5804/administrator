@@ -110,29 +110,32 @@
   async function loadProgress() {
     showProgressLoading(true);
     allProgressData = {};
-    const daysInMonth = new Date(progressYear, progressMonth, 0).getDate();
-    const promises = [];
-    for (let d = 1; d <= daysInMonth; d++) {
-      const dateKey = `${progressYear}-${String(progressMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-      promises.push((async () => {
-        const dayData = {};
-        for (const s of SECTORS) {
-          try {
-            const snap = await getDoc(doc(db, `progress_checks_${dateKey}`, s.id));
-            if (snap.exists()) dayData[s.id] = snap.data();
-          } catch(e) {}
-        }
-        if (Object.keys(dayData).length > 0) allProgressData[dateKey] = dayData;
-      })());
-    }
+    const yearMonth = `${progressYear}-${String(progressMonth).padStart(2,'0')}`;
+
+    // 새 구조: progress_monthly/{yearMonth}/zones/{zoneId} → 월 전체 6회 호출
+    const promises = SECTORS.map(async s => {
+      try {
+        const snap = await getDoc(doc(db, 'progress_monthly', yearMonth, 'zones', s.id));
+        if (!snap.exists()) return;
+        const monthData = snap.data();
+        Object.entries(monthData).forEach(([dateKey, checks]) => {
+          if (dateKey === 'updatedAt') return;
+          if (!allProgressData[dateKey]) allProgressData[dateKey] = {};
+          allProgressData[dateKey][s.id] = checks;
+        });
+      } catch(e) {}
+    });
+
     // 과거 고정 데이터 병합
     Object.entries(PAST_PROGRESS_DAILY).forEach(([dateKey, dayData]) => {
+      if (!dateKey.startsWith(yearMonth)) return;
       if (!allProgressData[dateKey]) allProgressData[dateKey] = {};
       Object.entries(dayData).forEach(([sectorId, checks]) => {
         if (!allProgressData[dateKey][sectorId]) allProgressData[dateKey][sectorId] = {};
         Object.assign(allProgressData[dateKey][sectorId], checks);
       });
     });
+
     await Promise.all(promises);
     showProgressLoading(false);
     renderProgressMonth();
@@ -240,8 +243,10 @@
     let totalWorkDays = 0;
 
     const promises = [];
-    const dailyData = {}; // { dateKey: { w1:1.0, ... } }
+    const dailyData = {};
+    window._mandayCache = window._mandayCache || {};
 
+    // worker_manday는 날짜별 문서 — getDocs로 월 전체 병렬 조회
     for (let d = 1; d <= daysInMonth; d++) {
       const dateKey = `${mandayYear}-${String(mandayMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
       promises.push((async () => {
@@ -250,7 +255,6 @@
           if (snap.exists()) {
             const md = snap.data().md || {};
             dailyData[dateKey] = md;
-            window._mandayCache = window._mandayCache || {};
             window._mandayCache[dateKey] = md;
             Object.entries(md).forEach(([wid, val]) => {
               if (totals[wid] !== undefined) totals[wid] += val;
