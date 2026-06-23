@@ -1428,11 +1428,12 @@ function renderAnnualSelect(el) {
 }
 
 // 연봉 계산
-function calcAnnualSalary(annual) {
+function calcAnnualSalary(annual, empType) {
   if (!annual) return { basic:0, fixedOt:0, fixedNight:0, total:0 };
   const basic      = Math.round(annual / 12);
   const fixedOt    = Math.round((basic / 209) * 10 * 4.345 * 1.5);
-  const fixedNight = Math.round((basic / 209) * 40 * 4.345 * 0.5);
+  // 사무직은 고정야간수당 0, 현장직(또는 미지정)은 정상 계산
+  const fixedNight = (empType==='office') ? 0 : Math.round((basic / 209) * 40 * 4.345 * 0.5);
   const total      = basic + fixedOt + fixedNight;
   return { basic, fixedOt, fixedNight, total };
 }
@@ -2848,8 +2849,13 @@ window.rosterDetail = (id) => {
   const modal = document.createElement('div');
   modal.id = 'roster-detail-modal';
   modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+  // 수정 가능한 상세 모달
+  const DEPTS2 = ['사업본부','현장관리팀','인력배치팀','경영지원본부','경영총무팀','영업기획팀'];
+  const RANKS2 = ['과장','대리','사원'];
+  window._editRosterTarget = {...d};
+
   modal.innerHTML = `
-    <div style="background:#fff;border-radius:16px;padding:24px;width:100%;max-width:380px;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+    <div style="background:#fff;border-radius:16px;padding:24px;width:100%;max-width:400px;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
         <div>
           <div style="font-size:16px;font-weight:800;color:#1A2540;">${d.name}</div>
@@ -2859,37 +2865,85 @@ window.rosterDetail = (id) => {
           style="background:#F4F7FB;border:none;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:16px;color:#5C6F8A;">✕</button>
       </div>
 
-      <div style="background:#F4F7FB;border-radius:12px;padding:16px;margin-bottom:12px;">
+      <!-- 재직 정보 -->
+      <div style="background:#F4F7FB;border-radius:12px;padding:14px;margin-bottom:10px;">
         <div style="font-size:11px;font-weight:700;color:#1D5BA6;margin-bottom:10px;letter-spacing:1px;">📅 재직 정보</div>
-        <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #DDE4EF;font-size:13px;">
-          <span style="color:#5C6F8A;font-weight:600;">최초 입사일</span>
-          <span style="color:#1A2540;font-weight:600;">${d.hireDate ? d.hireDate.replace(/-/g,'.') : '미등록'}</span>
+        <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #DDE4EF;font-size:12px;">
+          <span style="color:#5C6F8A;font-weight:600;min-width:80px;">최초 입사일</span>
+          <input type="date" value="${d.hireDate||''}" onchange="window._editRosterTarget.hireDate=this.value;"
+            style="border:1px solid #DDE4EF;border-radius:6px;padding:3px 6px;font-size:12px;color:#1A2540;"/>
         </div>
-        <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #DDE4EF;font-size:13px;">
+        <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #DDE4EF;font-size:12px;">
           <span style="color:#5C6F8A;font-weight:600;">재직 기간</span>
-          <span style="color:#1A2540;font-weight:600;">${d.hireDate ? `${w.years > 0 ? w.years+'년 ' : ''}${w.months}개월 (${w.calDays}일)` : '-'}</span>
+          <span style="color:#1A2540;font-weight:600;">${d.hireDate ? `${w.years>0?w.years+'년 ':''}${w.months}개월 (${w.calDays}일)` : '-'}</span>
         </div>
-        <div style="display:flex;justify-content:space-between;padding:7px 0;font-size:13px;">
+        <div style="display:flex;justify-content:space-between;padding:7px 0;font-size:12px;">
           <span style="color:#5C6F8A;font-weight:600;">실 근무일수</span>
-          <span style="color:#1D5BA6;font-weight:700;">${d.hireDate ? w.days.toLocaleString() + '일' : '-'}</span>
+          <span style="color:#1D5BA6;font-weight:700;">${d.hireDate ? w.days.toLocaleString()+'일' : '-'}</span>
         </div>
       </div>
 
-      <div style="background:#F4F7FB;border-radius:12px;padding:16px;">
-        <div style="font-size:11px;font-weight:700;color:#1D5BA6;margin-bottom:10px;letter-spacing:1px;">👤 기본 정보</div>
+      <!-- 수정 가능한 기본 정보 -->
+      <div style="background:#F4F7FB;border-radius:12px;padding:14px;margin-bottom:10px;">
+        <div style="font-size:11px;font-weight:700;color:#1D5BA6;margin-bottom:10px;letter-spacing:1px;">👤 기본 정보 수정</div>
         ${[
-          ['휴대폰', d.phone||'-'],
-          ['주소',   d.address||'-'],
-          ['담당업무', d.job||'-'],
-        ].map(([l,v])=>`
-          <div style="display:flex;padding:7px 0;border-bottom:1px solid #DDE4EF;font-size:12px;">
-            <span style="color:#5C6F8A;min-width:72px;font-weight:600;flex-shrink:0;">${l}</span>
-            <span style="color:#1A2540;">${v}</span>
+          {label:'이름', key:'name', type:'text', val:d.name||''},
+          {label:'주민번호', key:'jumin', type:'text', val:d.jumin||''},
+          {label:'휴대폰', key:'phone', type:'text', val:d.phone||''},
+          {label:'주소', key:'address', type:'text', val:d.address||''},
+        ].map(f=>`
+          <div style="display:flex;align-items:center;padding:6px 0;border-bottom:1px solid #DDE4EF;gap:8px;">
+            <span style="color:#5C6F8A;font-weight:600;min-width:68px;font-size:12px;flex-shrink:0;">${f.label}</span>
+            <input type="${f.type}" value="${f.val}" oninput="window._editRosterTarget['${f.key}']=this.value;"
+              style="flex:1;border:1px solid #DDE4EF;border-radius:6px;padding:4px 8px;font-size:12px;color:#1A2540;"/>
           </div>`).join('')}
+        <div style="display:flex;align-items:center;padding:6px 0;border-bottom:1px solid #DDE4EF;gap:8px;">
+          <span style="color:#5C6F8A;font-weight:600;min-width:68px;font-size:12px;flex-shrink:0;">소속</span>
+          <select onchange="window._editRosterTarget.dept=this.value;"
+            style="flex:1;border:1px solid #DDE4EF;border-radius:6px;padding:4px 8px;font-size:12px;color:#1A2540;cursor:pointer;">
+            ${DEPTS2.map(dep=>`<option value="${dep}" ${d.dept===dep?'selected':''}>${dep}</option>`).join('')}
+          </select>
+        </div>
+        <div style="display:flex;align-items:center;padding:6px 0;border-bottom:1px solid #DDE4EF;gap:8px;">
+          <span style="color:#5C6F8A;font-weight:600;min-width:68px;font-size:12px;flex-shrink:0;">직급</span>
+          <select onchange="window._editRosterTarget.rank=this.value;"
+            style="flex:1;border:1px solid #DDE4EF;border-radius:6px;padding:4px 8px;font-size:12px;color:#1A2540;cursor:pointer;">
+            ${RANKS2.map(r=>`<option value="${r}" ${d.rank===r?'selected':''}>${r}</option>`).join('')}
+          </select>
+        </div>
+        <div style="display:flex;align-items:center;padding:6px 0;gap:8px;">
+          <span style="color:#5C6F8A;font-weight:600;min-width:68px;font-size:12px;flex-shrink:0;">구분</span>
+          <div style="display:flex;gap:6px;flex:1;">
+            <button onclick="window._editRosterTarget.empType='field';this.parentElement.querySelectorAll('button').forEach(b=>{b.style.background='#F8FAFD';b.style.color='#5C6F8A';b.style.borderColor='#DDE4EF';});this.style.background='#E8F0FB';this.style.color='#1D5BA6';this.style.borderColor='#1D5BA6';"
+              style="flex:1;padding:6px;border-radius:7px;border:2px solid ${d.empType==='field'?'#1D5BA6':'#DDE4EF'};background:${d.empType==='field'?'#E8F0FB':'#F8FAFD'};color:${d.empType==='field'?'#1D5BA6':'#5C6F8A'};font-size:12px;font-weight:700;cursor:pointer;">
+              🔧 현장직
+            </button>
+            <button onclick="window._editRosterTarget.empType='office';this.parentElement.querySelectorAll('button').forEach(b=>{b.style.background='#F8FAFD';b.style.color='#5C6F8A';b.style.borderColor='#DDE4EF';});this.style.background='#E8F0FB';this.style.color='#1D5BA6';this.style.borderColor='#1D5BA6';"
+              style="flex:1;padding:6px;border-radius:7px;border:2px solid ${d.empType==='office'?'#1D5BA6':'#DDE4EF'};background:${d.empType==='office'?'#E8F0FB':'#F8FAFD'};color:${d.empType==='office'?'#1D5BA6':'#5C6F8A'};font-size:12px;font-weight:700;cursor:pointer;">
+              💼 사무직
+            </button>
+          </div>
+        </div>
       </div>
+
+      <button onclick="rosterDetailSave('${d.id}')"
+        style="width:100%;padding:12px;background:#1D5BA6;border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(29,91,166,0.25);">
+        💾 수정 저장
+      </button>
     </div>`;
   document.body.appendChild(modal);
   modal.addEventListener('click', e => { if(e.target===modal) modal.remove(); });
+};
+
+window.rosterDetailSave = async (id) => {
+  if (!window._db) { alert('Firebase 연결 필요'); return; }
+  try {
+    const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    await setDoc(doc(window._db,'workers',id), { ...window._editRosterTarget }, { merge:true });
+    document.getElementById('roster-detail-modal').remove();
+    alert('✅ 수정 완료!');
+    renderRosterList(); // 목록 새로고침
+  } catch(e) { alert('저장 오류: '+e.message); }
 };
 window.rosterEmpNoEdit = (id,cur) => {
   document.getElementById(`eno-d-${id}`).style.display='none';
@@ -3068,7 +3122,56 @@ window.laborPreview2 = () => {
       <p style="font-weight:700;margin:14px 0 5px;">제3조 【근무장소 및 대상업무】</p><p style="margin-bottom:4px;">1. "을"은 "갑"이 제공하는 근무장소에서 근무하며, "을"은 이에 따른다.</p><p style="margin-bottom:4px;">&nbsp;&nbsp;1) 소속 : ${ul(f.dept,180)} &nbsp; 직급 : ${ul(f.rank,60)}</p><p style="margin-bottom:8px;">&nbsp;&nbsp;2) 담당 업무 : ${ul(f.job,160)}</p>
       <p style="font-weight:700;margin:14px 0 5px;">제4조 【임 금】</p><p style="margin-bottom:4px;">- 계약연봉 : ${f.salary?`일금 ${Number(f.salary).toLocaleString()}원`:ul('',180)}</p><p style="margin-bottom:4px;">- 세부 지급 사항은 연봉계약서를 기준으로 한다. 임금 지급일 : 익월 말일</p>
       <p style="font-weight:700;margin:14px 0 5px;">제5조 【사회보험】</p><p style="margin-bottom:8px;">☑ 고용보험 &nbsp; ☑ 산재보험 &nbsp; ☑ 국민연금 &nbsp; ☑ 건강보험</p>
-      <div style="text-align:center;color:#888;font-size:10pt;margin:14px 0;border-top:1px dashed #ccc;border-bottom:1px dashed #ccc;padding:6px 0;">제6조 ~ 제21조 (근로시간, 퇴직금, 휴가, 손해배상, 비밀유지 등 표준 조항)</div>
+      <p style="font-weight:700;margin:12px 0 4px;">제6조 【근로시간】</p>
+      <p style="margin-bottom:6px;">근로기준법 제50조에 따라 주 40시간 근로를 원칙으로 한다. 다만 현장 여건에 따라 근로기준법 제53조에 의거하여 최대 12시간까지 연장하여 근로할 수 있다. (식사 및 휴게시간은 근로시간에서 제외)</p>
+      <p style="font-weight:700;margin:12px 0 4px;">제7조 【휴게시간】</p>
+      <p style="margin-bottom:6px;">4시간 근무마다 30분 휴식, 중식 1시간 의무지급을 원칙으로 한다. 다만, 현장 상황에 따라 유연하게 적용한다.</p>
+      <p style="font-weight:700;margin:12px 0 4px;">제8조 【퇴직금】</p>
+      <p style="margin-bottom:4px;">1. "갑"은 "을"의 1년 이상 계속 근로에 대하여 퇴직 전 3개월 평균임금의 30일분을 퇴직금으로 지급한다. (단, 별도로 지급되는 수당은 퇴직금 계산에서 제외된다.)</p>
+      <p style="margin-bottom:6px;">2. 4대보험 개인의 선택으로 가입하지 않을 시 퇴직금은 지급하지 아니한다.</p>
+      <p style="font-weight:700;margin:12px 0 4px;">제9조 【휴일 및 휴가】</p>
+      <p style="margin-bottom:4px;">"을"의 휴일과 휴가는 근로자계약의 내용에 따라 결정되며, 회사는 연차휴가와 관련하여 근로자대표와의 합의에 의하여 특정일을 연차휴가로 대체할 수 있다.</p>
+      <p style="margin-bottom:4px;">- 계속 근로 1년 이상, 해당 기간 동안 80% 이상이 될 경우 15일의 유급휴가가 부여된다.</p>
+      <p style="margin-bottom:6px;">- "갑"은 계속하여 근로한 기간이 1년 미만인 근로자에게 1개월 개근 시 1일의 유급휴가를 부여한다.</p>
+      <p style="font-weight:700;margin:12px 0 4px;">제10조 【지휘감독 및 근로조건】</p>
+      <p style="margin-bottom:6px;">"을"은 "갑"의 소속 단기계약근로자로서 사업주의 지휘감독을 받으며, "갑"의 취업규칙 및 근무지의 제규정을 준수하여야 한다.</p>
+      <p style="font-weight:700;margin:12px 0 4px;">제11조 【귀책사유】</p>
+      <p style="margin-bottom:2px;">1. 직무상의 의무를 위반하거나 근무에 태만하였을 때</p>
+      <p style="margin-bottom:2px;">2. "갑" 및 사용사업주의 이미지를 크게 손상하거나 재산상의 피해를 주었을 때</p>
+      <p style="margin-bottom:2px;">3. 비밀누설 및 폭행, 파업 등 규율과 질서를 문란케 하였을 때</p>
+      <p style="margin-bottom:2px;">4. 취업기간 중 형사상 유죄판결을 받았을 때</p>
+      <p style="margin-bottom:2px;">5. 채용조건에 구비된 각종문서가 위조 또는 변조, 허위사실 등이 기재되었을 때</p>
+      <p style="margin-bottom:2px;">6. 사용사업주의 허가 없이 3일 이상 결근하였을 때</p>
+      <p style="margin-bottom:2px;">7. 무단지각, 조퇴, 외출을 월 3회 이상 하였을 때</p>
+      <p style="margin-bottom:6px;">8. 계약기간 내에 동종업체로 직접 계약 및 이직하였을 때</p>
+      <p style="font-weight:700;margin:12px 0 4px;">제12조 【손해배상】</p>
+      <p style="margin-bottom:6px;">"을"의 제11조 귀책사유로 "갑" 및 사용사업주에게 재산상의 손해를 끼쳤을 경우에는 전적으로 "을"이 책임지며, 이를 지키지 않은 경우에는 "갑"은 "을" 또는 "을"의 보증인에게 월급의 3배의 책임을 물 수 있다.</p>
+      <p style="font-weight:700;margin:12px 0 4px;">제13조 【재정보증】</p>
+      <p style="margin-bottom:4px;">- "을"은 1명의 재정보증인을 설정 신고하거나 "갑"이 요구하는 금액의 신용보증보험에 가입하여야 한다.</p>
+      <p style="margin-bottom:6px;">- "갑"은 "을"에게 신용보증보험을 요구할 수 있으며, "을"은 회사의 요구 시 1주일 이내에 제출하여야 한다.</p>
+      <p style="font-weight:700;margin:12px 0 4px;">제14조 【안전 및 보건에 관한 사항】</p>
+      <p style="margin-bottom:4px;">1. "갑"은 근로자의 안전 및 보건에 관하여 관계 법령이 정하는 바에 따라 필요한 조치를 강구한다.</p>
+      <p style="margin-bottom:4px;">2. "을"은 신규 입사 시 즉시 채용신체검사서를 제출하여야 하며, 정기 건강진단을 관련법령에 의거 실시하고 "을"은 이에 반드시 응해야 한다.</p>
+      <p style="margin-bottom:6px;">3. "을"은 제반 법규 및 "갑"이 정한 제반 안전 교육사항 및 안전수칙을 준수하여야 한다.</p>
+      <p style="font-weight:700;margin:12px 0 4px;">제15조 【취업 전 고지】</p>
+      <p style="margin-bottom:6px;">"을"은 본 근로계약의 내용을 취업 전 충분히 숙지하고 이를 성실히 이행한다.</p>
+      <p style="font-weight:700;margin:12px 0 4px;">제16조 【파견근로계약 및 동의】</p>
+      <p style="margin-bottom:6px;">"을"은 본 근로계약의 내용에 이의를 제기하지 아니하며 "을"의 근로조건은 "갑"의 취업규칙 및 근로자계약 범위 내에서 결정되는 것에 동의한다.</p>
+      <p style="font-weight:700;margin:12px 0 4px;">제17조 【계약의 해지】</p>
+      <p style="margin-bottom:4px;">다음 각 호에 해당하는 경우 갑과 을의 근로계약은 해지된다.</p>
+      <p style="margin-bottom:4px;">1. "갑"과 "을"의 상호 합의 하에 근무일을 지정하여 해당 날짜까지 근무 후 계약 종료</p>
+      <p style="margin-bottom:4px;">2. "을"의 계약종료 의사를 "갑"이 인지한 시점으로부터 당기 후의 1기가 지난 뒤 해지의 효력이 발생</p>
+      <p style="margin-bottom:6px;">3. 제11조 귀책사유 발생 시 "갑"은 일방적으로 "을"과의 근로계약을 해지할 수 있다.</p>
+      <p style="font-weight:700;margin:12px 0 4px;">제18조 【지급품의 반납】</p>
+      <p style="margin-bottom:6px;">퇴직 시에는 "을"은 "갑"으로부터 지급받은 장비, 피복, 기타 이에 준하는 지급품은 필히 반납하여야 하며 반납치 않을 시에는 급여에서 공제한다.</p>
+      <p style="font-weight:700;margin:12px 0 4px;">제19조 【근로기준법의 적용】</p>
+      <p style="margin-bottom:6px;">본 계약에 명시되지 않은 사항은 회사의 취업규칙 및 근로기준법의 해석에 준하여 따른다.</p>
+      <p style="font-weight:700;margin:12px 0 4px;">제20조 【비밀유지】</p>
+      <p style="margin-bottom:4px;">1. "을"은 자신의 계약내용을 관계인에게 누설하지 않는다.</p>
+      <p style="margin-bottom:4px;">2. "을"은 근무지에서 발생하는 인사문제를 관리자에게 보고하여야 하며 조치 받을 수 있도록 한다.</p>
+      <p style="margin-bottom:6px;">3. "을"은 "갑"에서 발생하는 문제를 외부에 누설하지 않는다.</p>
+      <p style="font-weight:700;margin:12px 0 4px;">제21조 【계약의 유지】</p>
+      <p style="margin-bottom:12px;">"갑"과 "을"은 제2조의 계약기간을 원칙으로 하며 "을"은 이에 동의한다. 위 계약내용이 당사자의 자유로운 의사에 의하여 원만히 체결되었음을 상호 확인하고 각 1통씩 보관한다.</p>
       <p style="font-weight:600;margin:20px 0 16px;">계약일자 : ${fmtDp(f.contractDate)}</p>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:16px;">
         <div style="border-top:1px solid #333;padding-top:12px;"><p style="font-weight:700;margin-bottom:6px;">(갑)</p><p>사업체명 : 제이에이치솔루션</p><p>대&nbsp;&nbsp;&nbsp;&nbsp;표 : 김 종 화 (인)</p><p>사업자번호 : 383-09-02847</p></div>
@@ -3212,8 +3315,8 @@ window.renderAnnualRegister = async () => {
       ${annualForm2.name?`
       ${card2('📅 계약 기간',`
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
-          ${field2('시작일',`<input type="date" value="${annualForm2.startDate}" onchange="annualForm2.startDate=this.value" style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:9px 8px;font-size:12px;box-sizing:border-box;">`)}
-          ${field2('종료일',`<input type="date" value="${annualForm2.endDate}" onchange="annualForm2.endDate=this.value" style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:9px 8px;font-size:12px;box-sizing:border-box;">`)}
+          ${field2('시작일',`<input type="date" value="${annualForm2.startDate}" onchange="annualForm2.startDate=this.value;const s=new Date(this.value);s.setFullYear(s.getFullYear()+1);s.setDate(s.getDate()-1);annualForm2.endDate=s.toISOString().slice(0,10);annualRefreshForm2();" style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:9px 8px;font-size:12px;box-sizing:border-box;">`)}
+          ${field2('종료일 (자동 1년)',`<input type="date" value="${annualForm2.endDate}" readonly style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:9px 8px;font-size:12px;box-sizing:border-box;background:#F4F7FB;color:#5C6F8A;">`)}
         </div>
         ${field2('계약일자',`<input type="date" value="${annualForm2.contractDate}" onchange="annualForm2.contractDate=this.value" ${inp2Style}>`)}
       `)}
@@ -3254,7 +3357,7 @@ window.renderAnnualRegister = async () => {
 
   window.annualRefreshForm2=renderAForm;
 window.annualUpdateSalaryPreview = () => {
-  const sal = calcAnnualSalary(Number(annualForm2.salary));
+  const sal = calcAnnualSalary(Number(annualForm2.salary), annualForm2.empType||'field');
   const el = document.getElementById('annual-sal-preview2');
   if (!el) return;
   if (!annualForm2.salary) { el.innerHTML=''; return; }
@@ -3268,11 +3371,25 @@ window.annualUpdateSalaryPreview = () => {
     </div>`;
 };
 
-  window.annualWorkerSelect2=(wid)=>{
+  window.annualWorkerSelect2=async(wid)=>{
     const w=(window._annualWorkers2||[]).find(x=>x.id===wid);
     if(!w)return;
     annualForm2.workerId=wid; annualForm2.name=w.name||''; annualForm2.jumin=w.jumin||'';
     annualForm2.address=w.address||''; annualForm2.dept=w.dept||''; annualForm2.rank=w.rank||'';
+    annualForm2.empType=w.empType||'field';
+    // 근로계약서에서 최신 연봉 자동 불러오기
+    if(window._db){
+      try{
+        const { getDocs, collection }=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+        const snap=await getDocs(collection(window._db,`labor_contracts/${wid}/contracts`));
+        let latestSalary=''; let latestDate='';
+        snap.forEach(d=>{
+          const dd=d.data();
+          if((dd.contractDate||'')>latestDate){ latestDate=dd.contractDate||''; latestSalary=dd.salary||''; }
+        });
+        if(latestSalary) annualForm2.salary=latestSalary;
+      }catch(e){}
+    }
     renderAForm();
   };
   renderAForm();
@@ -3307,7 +3424,7 @@ window.annualSave2=async()=>{
 };
 
 window.annualPreview2=()=>{
-  const f=annualForm2; const sal=calcAnnualSalary(Number(f.salary));
+  const f=annualForm2; const sal=calcAnnualSalary(Number(f.salary), f.empType||'field');
   const fmtDp=s=>{if(!s)return'____년 __월 __일';const d=new Date(s);return`${d.getFullYear()}년 ${String(d.getMonth()+1).padStart(2,'0')}월 ${String(d.getDate()).padStart(2,'0')}일`;};
   const ul=(v,w)=>`<span style="display:inline-block;min-width:${w||80}px;border-bottom:1px solid #333;text-align:center;padding:0 2px;">${v||''}</span>`;
   const tr=(l,a,b)=>`<tr><td style="border:1px solid #333;padding:5px 8px;font-size:10pt;">${l}</td><td style="border:1px solid #333;padding:5px 8px;text-align:right;font-size:10pt;">${a}</td><td style="border:1px solid #333;padding:5px 8px;font-size:9pt;color:#555;">${b}</td></tr>`;
