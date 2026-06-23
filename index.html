@@ -884,6 +884,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
 
 
+
 function calcAnnualSalary(hourly, empType) {
   if (!hourly) return { basic:0, fixedOt:0, fixedNight:0, weekly:0, total:0, annual:0 };
   const h = Number(hourly);
@@ -2447,6 +2448,9 @@ let laborView2 = 'main';
 let laborForm2 = { workerId:'', name:'', jumin:'', phone:'', address:'', dept:'', rank:'', job:'', empType:'field', startDate:'', endDate:'', contractDate:'', hourly:'', salary:'', signData:null };
 let laborSelectedWorker2 = null;
 let laborSignCanvas2 = null, laborSignDrawing2 = false;
+
+
+
 
 
 
