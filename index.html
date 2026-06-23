@@ -1390,7 +1390,8 @@ window.invShowPdf = () => {
 <script>
 // ── 근로계약서 ──
 let labor = {
-  view:'form',
+  view:'select',
+  selectedDoc:null,
   name:'', jumin:'', address:'', dept:'', rank:'', job:'',
   startDate:'', endDate:'', contractDate:'', salary:'',
   signData:null,
@@ -1401,8 +1402,11 @@ let laborSignCanvas  = null;
 window.renderLaborTab = () => {
   const el = document.getElementById('tab-labor');
   if (!el) return;
-  if (labor.view === 'form') renderLaborForm(el);
-  else renderLaborPdf(el);
+  if (labor.view === 'form')   renderLaborForm(el);
+  else if (labor.view === 'pdf')    renderLaborPdf(el);
+  else if (labor.view === 'list')   renderLaborList(el);
+  else if (labor.view === 'detail') renderLaborDetail(el);
+  else renderLaborSelect(el);
 };
 
 // 주민번호 자동 포맷
@@ -1441,6 +1445,184 @@ function laborField(label, input) {
     ${input}
   </div>`;
 }
+
+
+function renderLaborSelect(el) {
+  el.innerHTML = `
+    <div style="padding:24px 16px;max-width:480px;margin:0 auto;">
+      <div style="font-size:13px;color:#5C6F8A;margin-bottom:16px;font-weight:600;">작업을 선택해 주세요</div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <button onclick="labor.view='form';renderLaborTab();"
+          style="background:#fff;border:1px solid #DDE4EF;border-radius:14px;padding:18px 20px;text-align:left;cursor:pointer;box-shadow:0 1px 4px rgba(29,91,166,0.08);display:flex;align-items:center;gap:16px;">
+          <div style="width:48px;height:48px;background:#E8F0FB;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;">✏️</div>
+          <div style="flex:1;">
+            <div style="font-size:16px;font-weight:800;color:#1A2540;margin-bottom:3px;">작성</div>
+            <div style="font-size:12px;color:#5C6F8A;">새 근로계약서 작성 및 저장</div>
+          </div>
+          <div style="font-size:20px;color:#9AAABF;">›</div>
+        </button>
+        <button onclick="labor.view='list';renderLaborTab();"
+          style="background:#fff;border:1px solid #DDE4EF;border-radius:14px;padding:18px 20px;text-align:left;cursor:pointer;box-shadow:0 1px 4px rgba(29,91,166,0.08);display:flex;align-items:center;gap:16px;">
+          <div style="width:48px;height:48px;background:#DCFCE7;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;">📂</div>
+          <div style="flex:1;">
+            <div style="font-size:16px;font-weight:800;color:#1A2540;margin-bottom:3px;">조회</div>
+            <div style="font-size:12px;color:#5C6F8A;">저장된 근로계약서 조회 및 출력</div>
+          </div>
+          <div style="font-size:20px;color:#9AAABF;">›</div>
+        </button>
+      </div>
+    </div>`;
+}
+
+async function renderLaborList(el) {
+  el.innerHTML = `
+    <div style="padding:16px;max-width:480px;margin:0 auto;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <button onclick="labor.view='select';renderLaborTab();"
+          style="background:#E8F0FB;border:1px solid #DDE4EF;border-radius:8px;padding:5px 10px;color:#1D5BA6;font-size:12px;cursor:pointer;font-weight:600;">‹ 뒤로</button>
+        <span style="font-size:12px;color:#5C6F8A;font-weight:600;">저장된 계약서 목록</span>
+      </div>
+      <div id="labor-list-loading" style="text-align:center;padding:32px;color:#9AAABF;">
+        <div style="font-size:28px;margin-bottom:8px;">⏳</div>불러오는 중...
+      </div>
+      <div id="labor-list-wrap"></div>
+    </div>`;
+
+  // Firebase에서 목록 불러오기
+  if (!window._db) { setTimeout(()=>renderLaborList(el), 500); return; }
+
+  try {
+    const { getDocs, collection } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const snap = await getDocs(collection(window._db, 'labor_contracts'));
+    const docs = [];
+    snap.forEach(d => docs.push({id:d.id, ...d.data()}));
+    docs.sort((a,b) => (a.name||'').localeCompare(b.name||'', 'ko'));
+
+    document.getElementById('labor-list-loading').style.display = 'none';
+
+    if (docs.length === 0) {
+      document.getElementById('labor-list-wrap').innerHTML =
+        '<div style="text-align:center;padding:40px;color:#9AAABF;">저장된 계약서가 없습니다.</div>';
+      return;
+    }
+
+    const rows = docs.map((d,i) => {
+      const birth = d.jumin ? d.jumin.slice(0,6) : '-';
+      const birthFmt = birth.length===6
+        ? `${birth.slice(0,2)}.${birth.slice(2,4)}.${birth.slice(4,6)}`
+        : '-';
+      return `<button onclick="laborSelectDetail('${d.id}')"
+        style="width:100%;display:grid;grid-template-columns:1fr 1.2fr 0.7fr 0.9fr;
+          padding:12px 14px;gap:8px;background:${i%2===0?'#fff':'#F8FAFD'};
+          border:none;border-bottom:1px solid #F0F4FA;cursor:pointer;text-align:left;">
+        <div style="font-size:13px;font-weight:700;color:#1D5BA6;">${d.name||'-'}</div>
+        <div style="font-size:11px;color:#1A2540;">${d.dept||'-'}</div>
+        <div style="font-size:11px;color:#5C6F8A;">${d.rank||'-'}</div>
+        <div style="font-size:11px;color:#5C6F8A;">${birthFmt}</div>
+      </button>`;
+    }).join('');
+
+    document.getElementById('labor-list-wrap').innerHTML = `
+      <div style="background:#fff;border-radius:12px;border:1px solid #DDE4EF;overflow:hidden;box-shadow:0 1px 4px rgba(29,91,166,0.08);">
+        <div style="display:grid;grid-template-columns:1fr 1.2fr 0.7fr 0.9fr;background:#E8F0FB;padding:9px 14px;gap:8px;">
+          ${['이름','소속','직급','생년월일'].map(h=>`<div style="font-size:11px;font-weight:700;color:#1D5BA6;">${h}</div>`).join('')}
+        </div>
+        ${rows}
+      </div>`;
+
+    // 계약서 캐시
+    window._laborDocs = Object.fromEntries(docs.map(d=>[d.id,d]));
+
+  } catch(e) {
+    document.getElementById('labor-list-loading').innerHTML =
+      `<div style="color:#DC2626;">오류: ${e.message}</div>`;
+  }
+}
+
+window.laborSelectDetail = (id) => {
+  labor.selectedDoc = (window._laborDocs||{})[id];
+  labor.view = 'detail';
+  renderLaborTab();
+};
+
+function renderLaborDetail(el) {
+  const d = labor.selectedDoc;
+  if (!d) { labor.view='list'; renderLaborTab(); return; }
+
+  const fmtD = s => {
+    if (!s) return '-';
+    const dt = new Date(s);
+    return `${dt.getFullYear()}년 ${String(dt.getMonth()+1).padStart(2,'0')}월 ${String(dt.getDate()).padStart(2,'0')}일`;
+  };
+  const wonD = v => v ? `₩${Number(v).toLocaleString()}` : '-';
+  const signHtml = d.signData
+    ? `<img src="${d.signData}" style="width:100px;height:40px;object-fit:contain;opacity:0.9;"/>`
+    : '<span style="color:#9AAABF;font-size:12px;">서명 없음</span>';
+
+  el.innerHTML = `
+    <div style="padding:16px;max-width:480px;margin:0 auto;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <button onclick="labor.view='list';renderLaborTab();"
+          style="background:#E8F0FB;border:1px solid #DDE4EF;border-radius:8px;padding:5px 10px;color:#1D5BA6;font-size:12px;cursor:pointer;font-weight:600;">‹ 목록</button>
+        <span style="font-size:13px;font-weight:700;color:#1A2540;">${d.name} 근로계약서</span>
+        <span style="background:#DCFCE7;color:#16A34A;font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;">✅ 저장됨</span>
+      </div>
+
+      <!-- 기본 정보 -->
+      <div style="background:#fff;border-radius:12px;border:1px solid #DDE4EF;overflow:hidden;margin-bottom:10px;box-shadow:0 1px 4px rgba(29,91,166,0.08);">
+        <div style="background:#E8F0FB;padding:9px 14px;font-size:11px;font-weight:700;color:#1D5BA6;">👤 기본 정보</div>
+        ${[
+          ['이름', d.name||'-'],
+          ['주민번호', d.jumin||'-'],
+          ['주소', d.address||'-'],
+          ['소속', d.dept||'-'],
+          ['직급', d.rank||'-'],
+          ['담당업무', d.job||'-'],
+        ].map(([l,v])=>`
+          <div style="display:flex;padding:10px 14px;border-bottom:1px solid #F0F4FA;font-size:13px;">
+            <span style="color:#5C6F8A;min-width:80px;font-weight:600;flex-shrink:0;">${l}</span>
+            <span style="color:#1A2540;">${v}</span>
+          </div>`).join('')}
+      </div>
+
+      <!-- 계약 정보 -->
+      <div style="background:#fff;border-radius:12px;border:1px solid #DDE4EF;overflow:hidden;margin-bottom:10px;box-shadow:0 1px 4px rgba(29,91,166,0.08);">
+        <div style="background:#E8F0FB;padding:9px 14px;font-size:11px;font-weight:700;color:#1D5BA6;">📋 계약 정보</div>
+        ${[
+          ['계약일자', fmtD(d.contractDate)],
+          ['계약기간', `${fmtD(d.startDate)} ~<br/>${fmtD(d.endDate)}`],
+          ['계약연봉', wonD(d.salary)],
+        ].map(([l,v])=>`
+          <div style="display:flex;padding:10px 14px;border-bottom:1px solid #F0F4FA;font-size:13px;">
+            <span style="color:#5C6F8A;min-width:80px;font-weight:600;flex-shrink:0;">${l}</span>
+            <span style="color:#1A2540;">${v}</span>
+          </div>`).join('')}
+        <div style="display:flex;padding:10px 14px;font-size:13px;align-items:center;">
+          <span style="color:#5C6F8A;min-width:80px;font-weight:600;flex-shrink:0;">서명</span>
+          ${signHtml}
+        </div>
+      </div>
+
+      <!-- PDF 버튼 -->
+      <button onclick="laborDetailPrint();"
+        style="width:100%;padding:13px;background:#1D5BA6;border:none;border-radius:10px;
+          color:#fff;font-size:14px;font-weight:700;cursor:pointer;
+          box-shadow:0 4px 12px rgba(29,91,166,0.25);">
+        🖨 계약서 PDF 출력
+      </button>
+    </div>`;
+}
+
+window.laborDetailPrint = () => {
+  const d = labor.selectedDoc;
+  if (!d) return;
+  // laborPrint 재활용 (signData, 각 필드 labor에 임시 복사)
+  const backup = {...labor};
+  Object.assign(labor, d);
+  labor.view = 'detail';
+  laborPrint();
+  Object.assign(labor, backup);
+};
 
 function renderLaborForm(el) {
   el.innerHTML = `
@@ -1779,7 +1961,8 @@ window.laborConfirm = async () => {
       savedAt:      new Date().toISOString(),
       savedBy:      'admin',
     });
-    alert('✅ 저장 완료!\n근로자가 contract.html에서 이름과 주민번호로 조회할 수 있습니다.');
+    alert('✅ 저장 완료!\n조회 탭에서 확인하거나, 근로자에게 contract.html 링크를 공유하세요.');
+    labor.view='select'; renderLaborTab();
   } catch(e) {
     alert('저장 중 오류: ' + e.message);
   }
