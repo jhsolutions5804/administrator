@@ -111,20 +111,28 @@
     showProgressLoading(true);
     allProgressData = {};
     const yearMonth = `${progressYear}-${String(progressMonth).padStart(2,'0')}`;
+    const daysInMonth = new Date(progressYear, progressMonth, 0).getDate();
 
-    // 새 구조: progress_monthly/{yearMonth}/zones/{zoneId} → 월 전체 6회 호출
-    const promises = SECTORS.map(async s => {
-      try {
-        const snap = await getDoc(doc(db, 'progress_monthly', yearMonth, 'zones', s.id));
-        if (!snap.exists()) return;
-        const monthData = snap.data();
-        Object.entries(monthData).forEach(([dateKey, checks]) => {
-          if (dateKey === 'updatedAt') return;
-          if (!allProgressData[dateKey]) allProgressData[dateKey] = {};
-          allProgressData[dateKey][s.id] = checks;
+    // 기존 구조: progress_checks_{dateKey}/{zoneId} → { checks: {...} }
+    // 날짜별 병렬 처리 (Promise.all)
+    const promises = [];
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateKey = `${progressYear}-${String(progressMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      promises.push((async () => {
+        const dayData = {};
+        const sectorPromises = SECTORS.map(async s => {
+          try {
+            const snap = await getDoc(doc(db, `progress_checks_${dateKey}`, s.id));
+            if (snap.exists()) {
+              // checks 맵에서 꺼내기
+              dayData[s.id] = snap.data().checks || {};
+            }
+          } catch(e) {}
         });
-      } catch(e) {}
-    });
+        await Promise.all(sectorPromises);
+        if (Object.keys(dayData).length > 0) allProgressData[dateKey] = dayData;
+      })());
+    }
 
     // 과거 고정 데이터 병합
     Object.entries(PAST_PROGRESS_DAILY).forEach(([dateKey, dayData]) => {
@@ -867,7 +875,7 @@ window.invChangeMonth = async (month) => {
         try {
           const snap = await window._getDoc(window._doc(window._db, `progress_checks_${dateKey}`, s.id));
           if (snap.exists()) {
-            const checks = snap.data();
+            const checks = snap.data().checks || {};
             Object.keys(checks).forEach(k => {
               if (k.endsWith('_반입') && (checks[k]===true||checks[k]===1)) newBanips[s.id]++;
             });
