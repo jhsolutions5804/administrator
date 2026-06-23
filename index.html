@@ -878,6 +878,27 @@ window.addEventListener('DOMContentLoaded', () => {
 
 
 <script>
+function calcAnnualSalary(hourly, empType) {
+  if (!hourly) return { basic:0, fixedOt:0, fixedNight:0, weekly:0, total:0, annual:0 };
+  const h = Number(hourly);
+  if (empType === 'office') {
+    const basic      = Math.round(h * 8 * 5 * 4.345);
+    const fixedOt    = Math.round(h * 12 * 4.345);
+    const fixedNight = 0;
+    const weekly     = Math.round(h * 8 * 4.345);
+    const total      = basic + fixedOt + fixedNight + weekly;
+    return { basic, fixedOt, fixedNight, weekly, total, annual: total * 12 };
+  } else {
+    const basic      = Math.round(h * 8 * 5 * 4.345);
+    const fixedOt    = 0;
+    const fixedNight = Math.round(h * 0.5 * 8 * 5 * 4.345);
+    const weekly     = Math.round(h * 8 * 4.345);
+    const total      = basic + fixedOt + fixedNight + weekly;
+    return { basic, fixedOt, fixedNight, weekly, total, annual: total * 12 };
+  }
+}
+
+
 
 
 // 정산서 모듈 - Firebase는 window._db, window._doc, window._getDoc으로 접근
@@ -2957,6 +2978,7 @@ window.annualDeleteContract2=async(wid,cid,wname)=>{
 };
 
 window.annualPreviewSaved2=(d)=>{annualForm2={...d};annualPreview2();};
+
 
 
 
