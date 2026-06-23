@@ -40,7 +40,8 @@
   const INSTALL_CHECKS = ['내진스토퍼','다이크','실링','동판','결선'];
 
   function isInstallDone(checks, deviceId) {
-    return INSTALL_CHECKS.every(c => checks[`${deviceId}_${c}`] === 1);
+    const isChk = (k) => checks[k] === 1 || checks[k] === true;
+    return INSTALL_CHECKS.every(c => isChk(`${deviceId}_${c}`));
   }
 
   // ── 인증 ──
@@ -130,7 +131,7 @@
         s.devices.forEach(dev => {
           if (!result[s.id].devices[dev])
             result[s.id].devices[dev] = { banip:false, install:false, banipDate:null, installDate:null };
-          if (checks[`${dev}_반입`] === 1 && !result[s.id].devices[dev].banip) {
+          if ((checks[`${dev}_반입`] === 1 || checks[`${dev}_반입`] === true) && !result[s.id].devices[dev].banip) {
             result[s.id].devices[dev].banip = true;
             result[s.id].devices[dev].banipDate = dateKey;
           }
@@ -161,7 +162,7 @@
       const checks = dayData[sectorId];
       let todayBanip = 0, todayInstall = 0;
       sector.devices.forEach(dev => {
-        if (checks[`${dev}_반입`] === 1 && !cumBanip.has(dev))   { cumBanip.add(dev);   todayBanip++; }
+        if ((checks[`${dev}_반입`] === 1 || checks[`${dev}_반입`] === true) && !cumBanip.has(dev))   { cumBanip.add(dev);   todayBanip++; }
         if (isInstallDone(checks, dev)   && !cumInstall.has(dev)) { cumInstall.add(dev); todayInstall++; }
       });
       if (todayBanip > 0 || todayInstall > 0)
@@ -253,7 +254,7 @@
       if (!dayData[sectorId]) return;
       const checks = dayData[sectorId];
       sector.devices.forEach(dev => {
-        if (checks[`${dev}_반입`] === 1 && !devState[dev].banip) {
+        if ((checks[`${dev}_반입`] === 1 || checks[`${dev}_반입`] === true) && !devState[dev].banip) {
           devState[dev].banip = true; devState[dev].banipDate = dateKey;
         }
         if (isInstallDone(checks, dev) && !devState[dev].install) {
