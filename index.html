@@ -752,7 +752,7 @@ body { font-family:-apple-system,'Apple SD Gothic Neo','Pretendard',sans-serif; 
   <!-- 인사 탭바 -->
   <div id="tabbar-hr" class="tab-bar" style="display:none;">
     <button class="tab-btn active" id="tb-labor"   onclick="switchTab(this,'tab-labor');renderLaborTab();">📝 근로계약서</button>
-    <button class="tab-btn" id="tb-annual"          onclick="switchTab(this,'tab-annual');">📋 연봉계약서</button>
+    <button class="tab-btn" id="tb-annual"          onclick="switchTab(this,'tab-annual');renderAnnualTab();">📋 연봉계약서</button>
     <button class="tab-btn" id="tb-payslip"         onclick="switchTab(this,'tab-payslip');">💰 급여명세서</button>
   </div>
 
@@ -805,9 +805,7 @@ body { font-family:-apple-system,'Apple SD Gothic Neo','Pretendard',sans-serif; 
   </div>
 
   <!-- 연봉계약서 -->
-  <div class="tab-content" id="tab-annual">
-    <div class="coming-soon"><div style="font-size:32px">📋</div><br>연봉계약서<br><span style="font-size:12px;color:#9AAABF;">추후 구현 예정</span></div>
-  </div>
+  <div class="tab-content" id="tab-annual"></div>
 
   <!-- 급여명세서 -->
   <div class="tab-content" id="tab-payslip">
@@ -1388,6 +1386,160 @@ window.invShowPdf = () => {
 </html>
 
 <script>
+// ── 연봉계약서 ──
+let annual = { view:'select', selectedDoc:null };
+
+window.renderAnnualTab = () => {
+  const el = document.getElementById('tab-annual');
+  if (!el) return;
+  if      (annual.view === 'select') renderAnnualSelect(el);
+  else if (annual.view === 'form')   renderAnnualForm(el);
+  else if (annual.view === 'list')   renderAnnualList(el);
+  else if (annual.view === 'detail') renderAnnualDetail(el);
+};
+
+function renderAnnualSelect(el) {
+  el.innerHTML = `
+    <div style="padding:24px 16px;max-width:480px;margin:0 auto;">
+      <div style="font-size:13px;color:#5C6F8A;margin-bottom:16px;font-weight:600;">작업을 선택해 주세요</div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <button onclick="annual.view='form';renderAnnualTab();"
+          style="background:#fff;border:1px solid #DDE4EF;border-radius:14px;padding:18px 20px;text-align:left;cursor:pointer;box-shadow:0 1px 4px rgba(29,91,166,0.08);display:flex;align-items:center;gap:16px;">
+          <div style="width:48px;height:48px;background:#E8F0FB;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;">✏️</div>
+          <div style="flex:1;">
+            <div style="font-size:16px;font-weight:800;color:#1A2540;margin-bottom:3px;">작성</div>
+            <div style="font-size:12px;color:#5C6F8A;">새 연봉계약서 작성 및 저장</div>
+          </div>
+          <div style="font-size:20px;color:#9AAABF;">›</div>
+        </button>
+        <button onclick="annual.view='list';renderAnnualTab();"
+          style="background:#fff;border:1px solid #DDE4EF;border-radius:14px;padding:18px 20px;text-align:left;cursor:pointer;box-shadow:0 1px 4px rgba(29,91,166,0.08);display:flex;align-items:center;gap:16px;">
+          <div style="width:48px;height:48px;background:#DCFCE7;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;">📂</div>
+          <div style="flex:1;">
+            <div style="font-size:16px;font-weight:800;color:#1A2540;margin-bottom:3px;">조회</div>
+            <div style="font-size:12px;color:#5C6F8A;">저장된 연봉계약서 조회 및 출력</div>
+          </div>
+          <div style="font-size:20px;color:#9AAABF;">›</div>
+        </button>
+      </div>
+    </div>`;
+}
+
+function renderAnnualForm(el) {
+  el.innerHTML = `
+    <div style="padding:24px 16px;max-width:480px;margin:0 auto;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;">
+        <button onclick="annual.view='select';renderAnnualTab();"
+          style="background:#E8F0FB;border:1px solid #DDE4EF;border-radius:8px;padding:5px 10px;color:#1D5BA6;font-size:12px;cursor:pointer;font-weight:600;">‹ 뒤로</button>
+        <span style="font-size:13px;font-weight:700;color:#1A2540;">연봉계약서 작성</span>
+      </div>
+      <div style="text-align:center;padding:48px 20px;background:#fff;border-radius:12px;border:1px solid #DDE4EF;color:#9AAABF;box-shadow:0 1px 4px rgba(29,91,166,0.08);">
+        <div style="font-size:36px;margin-bottom:12px;">📋</div>
+        <div style="font-size:14px;font-weight:600;color:#5C6F8A;margin-bottom:6px;">연봉계약서 양식 준비 중</div>
+        <div style="font-size:12px;">양식 수령 후 구현 예정입니다</div>
+      </div>
+    </div>`;
+}
+
+async function renderAnnualList(el) {
+  el.innerHTML = `
+    <div style="padding:16px;max-width:480px;margin:0 auto;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <button onclick="annual.view='select';renderAnnualTab();"
+          style="background:#E8F0FB;border:1px solid #DDE4EF;border-radius:8px;padding:5px 10px;color:#1D5BA6;font-size:12px;cursor:pointer;font-weight:600;">‹ 뒤로</button>
+        <span style="font-size:12px;color:#5C6F8A;font-weight:600;">저장된 연봉계약서 목록</span>
+      </div>
+      <div id="annual-list-loading" style="text-align:center;padding:32px;color:#9AAABF;">
+        <div style="font-size:28px;margin-bottom:8px;">⏳</div>불러오는 중...
+      </div>
+      <div id="annual-list-wrap"></div>
+    </div>`;
+
+  if (!window._db) { setTimeout(()=>renderAnnualList(el), 500); return; }
+
+  try {
+    const { getDocs, collection } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const snap = await getDocs(collection(window._db, 'annual_contracts'));
+    const docs = [];
+    snap.forEach(d => docs.push({id:d.id, ...d.data()}));
+    docs.sort((a,b) => (a.name||'').localeCompare(b.name||'', 'ko'));
+
+    document.getElementById('annual-list-loading').style.display = 'none';
+
+    if (docs.length === 0) {
+      document.getElementById('annual-list-wrap').innerHTML =
+        '<div style="text-align:center;padding:40px;color:#9AAABF;">저장된 연봉계약서가 없습니다.</div>';
+      return;
+    }
+
+    const rows = docs.map((d,i) => {
+      const birth = d.jumin ? d.jumin.slice(0,6) : '-';
+      const birthFmt = birth.length===6
+        ? `${birth.slice(0,2)}.${birth.slice(2,4)}.${birth.slice(4,6)}` : '-';
+      return `<button onclick="annualSelectDetail('${d.id}')"
+        style="width:100%;display:grid;grid-template-columns:1fr 1.2fr 0.7fr 0.9fr;
+          padding:12px 14px;gap:8px;background:${i%2===0?'#fff':'#F8FAFD'};
+          border:none;border-bottom:1px solid #F0F4FA;cursor:pointer;text-align:left;">
+        <div style="font-size:13px;font-weight:700;color:#1D5BA6;">${d.name||'-'}</div>
+        <div style="font-size:11px;color:#1A2540;">${d.dept||'-'}</div>
+        <div style="font-size:11px;color:#5C6F8A;">${d.rank||'-'}</div>
+        <div style="font-size:11px;color:#5C6F8A;">${birthFmt}</div>
+      </button>`;
+    }).join('');
+
+    document.getElementById('annual-list-wrap').innerHTML = `
+      <div style="background:#fff;border-radius:12px;border:1px solid #DDE4EF;overflow:hidden;box-shadow:0 1px 4px rgba(29,91,166,0.08);">
+        <div style="display:grid;grid-template-columns:1fr 1.2fr 0.7fr 0.9fr;background:#E8F0FB;padding:9px 14px;gap:8px;">
+          ${['이름','소속','직급','생년월일'].map(h=>`<div style="font-size:11px;font-weight:700;color:#1D5BA6;">${h}</div>`).join('')}
+        </div>
+        ${rows}
+      </div>`;
+
+    window._annualDocs = Object.fromEntries(docs.map(d=>[d.id,d]));
+  } catch(e) {
+    document.getElementById('annual-list-loading').innerHTML =
+      `<div style="color:#DC2626;">오류: ${e.message}</div>`;
+  }
+}
+
+window.annualSelectDetail = (id) => {
+  annual.selectedDoc = (window._annualDocs||{})[id];
+  annual.view = 'detail';
+  renderAnnualTab();
+};
+
+function renderAnnualDetail(el) {
+  const d = annual.selectedDoc;
+  if (!d) { annual.view='list'; renderAnnualTab(); return; }
+
+  const fmtD = s => {
+    if (!s) return '-';
+    const dt = new Date(s);
+    return `${dt.getFullYear()}년 ${String(dt.getMonth()+1).padStart(2,'0')}월 ${String(dt.getDate()).padStart(2,'0')}일`;
+  };
+
+  el.innerHTML = `
+    <div style="padding:16px;max-width:480px;margin:0 auto;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <button onclick="annual.view='list';renderAnnualTab();"
+          style="background:#E8F0FB;border:1px solid #DDE4EF;border-radius:8px;padding:5px 10px;color:#1D5BA6;font-size:12px;cursor:pointer;font-weight:600;">‹ 목록</button>
+        <span style="font-size:13px;font-weight:700;color:#1A2540;">${d.name||'-'} 연봉계약서</span>
+        <span style="background:#DCFCE7;color:#16A34A;font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;">✅ 저장됨</span>
+      </div>
+      <div style="background:#fff;border-radius:12px;border:1px solid #DDE4EF;overflow:hidden;margin-bottom:10px;box-shadow:0 1px 4px rgba(29,91,166,0.08);">
+        <div style="background:#E8F0FB;padding:9px 14px;font-size:11px;font-weight:700;color:#1D5BA6;">📋 기본 정보</div>
+        ${[['이름',d.name||'-'],['소속',d.dept||'-'],['직급',d.rank||'-'],['계약연봉',d.salary?`₩${Number(d.salary).toLocaleString()}`:'-'],['계약일자',fmtD(d.contractDate)]]
+          .map(([l,v])=>`<div style="display:flex;padding:10px 14px;border-bottom:1px solid #F0F4FA;font-size:13px;">
+            <span style="color:#5C6F8A;min-width:80px;font-weight:600;flex-shrink:0;">${l}</span>
+            <span style="color:#1A2540;">${v}</span>
+          </div>`).join('')}
+      </div>
+      <div style="text-align:center;padding:16px;background:#fff;border-radius:12px;border:1px solid #DDE4EF;color:#9AAABF;font-size:13px;">
+        📋 상세 내용은 양식 확정 후 표시됩니다
+      </div>
+    </div>`;
+}
+
 // ── 근로계약서 ──
 let labor = {
   view:'select',
