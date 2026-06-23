@@ -879,6 +879,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
 <script>
 
+
 function calcAnnualSalary(hourly, empType) {
   if (!hourly) return { basic:0, fixedOt:0, fixedNight:0, weekly:0, total:0, annual:0 };
   const h = Number(hourly);
@@ -1494,117 +1495,38 @@ window.renderPayslipWrite = async () => {
   ps.workerData = null; ps.annualData = null;
   ps.bonus=''; ps.specialBonus=''; ps.extraPay=''; ps.dormitory=''; ps.bankAccount='';
 
-  // 근로자 목록 + 기준월 생성
   const workers = await getWorkersList();
   window._psWorkers = workers;
 
-  // 최근 12개월 목록
+  // 최근 13개월 목록
   const months = [];
   const now = new Date();
   for (let i = 0; i < 13; i++) {
     const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
     months.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
   }
-  if (!ps.month) ps.month = months[1]; // 전월 기본
+  if (!ps.month) ps.month = months[1];
 
-  const renderWrite = () => {
-    const c = psCalcAll();
-    el.innerHTML = wrap2(`
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
-        ${backBtn2('renderPayslipMain2()')}
-        <span style="font-size:13px;font-weight:700;color:${C2.text};">급여명세서 작성</span>
-      </div>
+  // 익월 말일 계산
+  function calcPayDate(month) {
+    if (!month) return '';
+    const [y, m] = month.split('-').map(Number);
+    const lastDay = new Date(y, m, 0).getDate(); // 익월 말일
+    const nextMonth = m === 12 ? 1 : m + 1;
+    const nextYear  = m === 12 ? y + 1 : y;
+    return `${nextYear}-${String(nextMonth).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
+  }
+  if (!ps.payDate) ps.payDate = calcPayDate(ps.month);
 
-      ${card2('📅 기준 정보', `
-        ${field2('기준월', `<select onchange="ps.month=this.value;psWorkerSelect(ps.workerId);" style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:9px 12px;font-size:13px;color:${C2.blue};background:#E8F0FB;cursor:pointer;">
-          ${months.map(m=>`<option value="${m}" ${ps.month===m?'selected':''}>${m.replace('-','년 ')}월</option>`).join('')}
-        </select>`)}
-        ${field2('근로자 선택', `<select onchange="psWorkerSelect(this.value)" style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:9px 12px;font-size:13px;color:${C2.blue};background:#E8F0FB;cursor:pointer;">
-          <option value="">근로자를 선택하세요</option>
-          ${workers.map(w=>`<option value="${w.id}" ${ps.workerId===w.id?'selected':''}>${w.empNo||'-'} · ${w.name} (${w.rank||''})</option>`).join('')}
-        </select>`)}
-        ${field2('지급일', `<input type="date" value="${ps.payDate}" onchange="ps.payDate=this.value" ${inp2Style}>`)}
-      `)}
+  window.psRefresh = () => renderPayslipWriteForm(el, workers, months, calcPayDate);
+  renderPayslipWriteForm(el, workers, months, calcPayDate);
 
-      ${ps.workerData ? `
-      ${card2('👤 근로자 기본 정보', `
-        ${[
-          ['이름', ps.workerData.name||'-'],
-          ['입사일', ps.workerData.hireDate||'-'],
-          ['사번', ps.workerData.empNo||'-'],
-          ['소속/직급', (ps.workerData.dept||'-')+' / '+(ps.workerData.rank||'-')],
-          ['생년월일', ps.workerData.jumin?(ps.workerData.jumin.slice(0,2)+'.'+ps.workerData.jumin.slice(2,4)+'.'+ps.workerData.jumin.slice(4,6)):'-'],
-        ].map(([l,v])=>`
-          <div style="display:flex;padding:7px 0;border-bottom:1px solid #F0F4FA;font-size:12px;">
-            <span style="color:${C2.sub};min-width:80px;font-weight:600;">${l}</span>
-            <span style="color:${C2.text};">${v}</span>
-          </div>`).join('')}
-        ${field2('계좌번호', `<input type="text" value="${ps.bankAccount}" placeholder="은행명 + 계좌번호 입력" oninput="ps.bankAccount=this.value" ${inp2Style}>`)}
-      `)}
-
-      ${card2('💳 지급 내역', `
-        <div style="background:#F8FAFD;border-radius:8px;overflow:hidden;margin-bottom:10px;">
-          ${[
-            ['기본근로수당', c.sal.basic, false, '연봉계약서 연동'],
-            ['고정연장수당', c.sal.fixedOt, false, '연봉계약서 연동'],
-            ['고정야간수당', c.sal.fixedNight, false, '연봉계약서 연동'],
-            ['주휴수당',    c.sal.weekly, false, '연봉계약서 연동'],
-          ].map(([l,v,_,note])=>`
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid #F0F4FA;font-size:12px;">
-              <div><span style="color:${C2.sub};font-weight:600;">${l}</span><span style="font-size:10px;color:${C2.mute};margin-left:6px;">${note}</span></div>
-              <span style="color:${C2.text};font-weight:600;">${psWon(v)}</span>
-            </div>`).join('')}
-        </div>
-        ${field2('상여금', `<input type="number" value="${ps.bonus}" placeholder="0" oninput="ps.bonus=this.value;psRefresh();" ${inp2Style}>`)}
-        ${field2('특별성과급', `<input type="number" value="${ps.specialBonus}" placeholder="0" oninput="ps.specialBonus=this.value;psRefresh();" ${inp2Style}>`)}
-        ${field2('특근수당', `<input type="number" value="${ps.extraPay}" placeholder="0" oninput="ps.extraPay=this.value;psRefresh();" ${inp2Style}>`)}
-        <div style="display:flex;justify-content:space-between;padding:10px 12px;background:#E8F0FB;border-radius:8px;font-size:14px;font-weight:700;margin-top:4px;">
-          <span style="color:${C2.blue};">지급계</span>
-          <span style="color:${C2.blue};">${psWonR(c.totalPay)}</span>
-        </div>
-      `)}
-
-      ${card2('➖ 공제 내역', `
-        <div style="background:#FFF8F8;border-radius:8px;overflow:hidden;margin-bottom:10px;">
-          ${[
-            ['국민연금', c.pension, '월 보수액 × 4.5%'],
-            ['건강보험', c.health, '월 보수액 × 3.545%'],
-            ['장기요양보험', c.ltcare, '건강보험 × 12.81%'],
-            ['고용보험', c.employ, '월 보수액 × 0.9%'],
-            ['소득세', c.incomeTax, '간이세액표 적용'],
-            ['지방소득세', c.localTax, '소득세 × 10%'],
-          ].map(([l,v,note])=>`
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid #FFE8E8;font-size:12px;">
-              <div><span style="color:${C2.sub};font-weight:600;">${l}</span><span style="font-size:10px;color:${C2.mute};margin-left:6px;">${note}</span></div>
-              <span style="color:#DC2626;font-weight:600;">-${psWonR(v)}</span>
-            </div>`).join('')}
-        </div>
-        ${field2('기숙사 공제', `<input type="number" value="${ps.dormitory}" placeholder="0" oninput="ps.dormitory=this.value;psRefresh();" ${inp2Style}>`)}
-        <div style="display:flex;justify-content:space-between;padding:10px 12px;background:#FEE2E2;border-radius:8px;font-size:14px;font-weight:700;margin-top:4px;">
-          <span style="color:#DC2626;">공제계</span>
-          <span style="color:#DC2626;">-${psWonR(c.totalDeduct)}</span>
-        </div>
-      `)}
-
-      <!-- 실지급액 -->
-      <div style="background:#1D5BA6;border-radius:14px;padding:18px 20px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 4px 16px rgba(29,91,166,0.3);">
-        <span style="font-size:15px;font-weight:700;color:#fff;">실 지급액</span>
-        <span style="font-size:22px;font-weight:800;color:#fff;">${psWonR(c.netPay)}</span>
-      </div>
-
-      <div style="display:flex;gap:8px;">
-        <button onclick="psPreview();" style="flex:1;padding:13px;background:${C2.sub};border:none;border-radius:12px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">📄 미리보기</button>
-        <button onclick="psSave();" style="flex:1;padding:13px;background:${C2.green};border:none;border-radius:12px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">✅ 확정 저장</button>
-      </div>
-      ` : ''}
-    `);
-  };
-
-  window.psRefresh = renderWrite;
   window.psWorkerSelect = async (wid) => {
-    if (!wid) { ps.workerId=''; ps.workerData=null; ps.annualData=null; renderWrite(); return; }
+    if (!wid) { ps.workerId=''; ps.workerData=null; ps.annualData=null; window.psRefresh(); return; }
     ps.workerId = wid;
-    ps.workerData = workers.find(w=>w.id===wid)||null;
+    ps.workerData = workers.find(w=>w.id===wid) || null;
+    // 명부에서 계좌번호 불러오기
+    if (ps.workerData?.bankAccount) ps.bankAccount = ps.workerData.bankAccount;
 
     // 연봉계약서에서 해당 월 기준 최신 계약 불러오기
     if (window._db && wid) {
@@ -1614,21 +1536,128 @@ window.renderPayslipWrite = async () => {
         let latest = null; let latestDate = '';
         snap.forEach(d => {
           const dd = d.data();
-          if ((dd.contractDate||'') <= ps.month+'-31' && (dd.contractDate||'') > latestDate) {
+          if ((dd.contractDate||'') > latestDate) {
             latestDate = dd.contractDate||''; latest = dd;
           }
         });
         ps.annualData = latest;
-        if (latest?.bankAccount) ps.bankAccount = latest.bankAccount;
-      } catch(e) {}
+      } catch(e) { console.error('연봉계약서 로드 오류:', e); }
     }
-    renderWrite();
+    window.psRefresh();
   };
-
-  renderWrite();
 };
 
-// 급여명세서 미리보기 PDF
+function renderPayslipWriteForm(el, workers, months, calcPayDate) {
+  const c = psCalcAll();
+  el.innerHTML = wrap2(`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+      ${backBtn2('renderPayslipMain2()')}
+      <span style="font-size:13px;font-weight:700;color:${C2.text};">급여명세서 작성</span>
+    </div>
+
+    ${card2('📅 기준 정보', `
+      ${field2('기준월', `<select onchange="ps.month=this.value;ps.payDate=calcPayDateGlobal(this.value);window.psRefresh();"
+        style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:9px 12px;font-size:13px;color:${C2.blue};background:#E8F0FB;cursor:pointer;">
+        ${months.map(m=>`<option value="${m}" ${ps.month===m?'selected':''}>${m.replace('-','년 ')}월</option>`).join('')}
+      </select>`)}
+      ${field2('근로자 선택', `<select onchange="psWorkerSelect(this.value)"
+        style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:9px 12px;font-size:13px;color:${C2.blue};background:#E8F0FB;cursor:pointer;">
+        <option value="">근로자를 선택하세요</option>
+        ${workers.map(w=>`<option value="${w.id}" ${ps.workerId===w.id?'selected':''}>${w.empNo||'-'} · ${w.name} (${w.rank||''})</option>`).join('')}
+      </select>`)}
+      ${field2('지급일', `<input type="date" value="${ps.payDate}" onchange="ps.payDate=this.value" ${inp2Style}>`)}
+    `)}
+
+    ${ps.workerData ? `
+    ${card2('👤 근로자 기본 정보', `
+      ${[
+        ['이름', ps.workerData.name||'-'],
+        ['사번', ps.workerData.empNo||'-'],
+        ['소속/직급', (ps.workerData.dept||'-')+' / '+(ps.workerData.rank||'-')],
+        ['입사일', ps.workerData.hireDate||'-'],
+        ['생년월일', ps.workerData.jumin?(ps.workerData.jumin.slice(0,2)+'.'+ps.workerData.jumin.slice(2,4)+'.'+ps.workerData.jumin.slice(4,6)):'-'],
+      ].map(([l,v])=>`
+        <div style="display:flex;padding:7px 0;border-bottom:1px solid #F0F4FA;font-size:12px;">
+          <span style="color:${C2.sub};min-width:80px;font-weight:600;">${l}</span>
+          <span style="color:${C2.text};">${v}</span>
+        </div>`).join('')}
+      ${field2('계좌번호', `<input type="text" value="${ps.bankAccount}" placeholder="은행명 + 계좌번호" oninput="ps.bankAccount=this.value" ${inp2Style}>`)}
+    `)}
+
+    ${card2('💳 지급 내역', `
+      <div style="background:#F8FAFD;border-radius:8px;overflow:hidden;margin-bottom:10px;">
+        ${ps.annualData ? `
+        ${[
+          ['기본근로수당', c.sal.basic, '연봉계약서 연동'],
+          ['고정연장수당', c.sal.fixedOt, '연봉계약서 연동'],
+          ['고정야간수당', c.sal.fixedNight, '연봉계약서 연동'],
+          ['주휴수당',    c.sal.weekly, '연봉계약서 연동'],
+        ].filter(([,v])=>v>0).map(([l,v,note])=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid #F0F4FA;font-size:12px;">
+            <div><span style="color:${C2.sub};font-weight:600;">${l}</span><span style="font-size:10px;color:${C2.mute};margin-left:6px;">${note}</span></div>
+            <span style="color:${C2.text};font-weight:600;">₩${v.toLocaleString()}</span>
+          </div>`).join('')}` : `
+        <div style="text-align:center;padding:16px;font-size:12px;color:${C2.mute};">
+          ⚠️ 연봉계약서를 먼저 등록해야 지급내역이 자동 연동됩니다.
+        </div>`}
+      </div>
+      ${field2('상여금', `<input type="number" value="${ps.bonus}" placeholder="0" oninput="ps.bonus=this.value;window.psRefresh();" ${inp2Style}>`)}
+      ${field2('특별성과급', `<input type="number" value="${ps.specialBonus}" placeholder="0" oninput="ps.specialBonus=this.value;window.psRefresh();" ${inp2Style}>`)}
+      ${field2('특근수당', `<input type="number" value="${ps.extraPay}" placeholder="0" oninput="ps.extraPay=this.value;window.psRefresh();" ${inp2Style}>`)}
+      <div style="display:flex;justify-content:space-between;padding:10px 12px;background:#E8F0FB;border-radius:8px;font-size:14px;font-weight:700;margin-top:4px;">
+        <span style="color:${C2.blue};">지급계</span>
+        <span style="color:${C2.blue};">₩${c.totalPay.toLocaleString()}</span>
+      </div>
+    `)}
+
+    ${card2('➖ 공제 내역', `
+      <div style="background:#FFF8F8;border-radius:8px;overflow:hidden;margin-bottom:10px;">
+        ${[
+          ['국민연금', c.pension, '지급계 × 4.5%'],
+          ['건강보험', c.health, '지급계 × 3.545%'],
+          ['장기요양보험', c.ltcare, '건강보험 × 12.81%'],
+          ['고용보험', c.employ, '지급계 × 0.9%'],
+          ['소득세', c.incomeTax, '간이세액표'],
+          ['지방소득세', c.localTax, '소득세 × 10%'],
+        ].map(([l,v,note])=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid #FFE8E8;font-size:12px;">
+            <div><span style="color:${C2.sub};font-weight:600;">${l}</span><span style="font-size:10px;color:${C2.mute};margin-left:6px;">${note}</span></div>
+            <span style="color:#DC2626;font-weight:600;">-₩${v.toLocaleString()}</span>
+          </div>`).join('')}
+      </div>
+      ${field2('기숙사 공제', `<input type="number" value="${ps.dormitory}" placeholder="0" oninput="ps.dormitory=this.value;window.psRefresh();" ${inp2Style}>`)}
+      <div style="display:flex;justify-content:space-between;padding:10px 12px;background:#FEE2E2;border-radius:8px;font-size:14px;font-weight:700;margin-top:4px;">
+        <span style="color:#DC2626;">공제계</span>
+        <span style="color:#DC2626;">-₩${c.totalDeduct.toLocaleString()}</span>
+      </div>
+    `)}
+
+    <div style="background:#1D5BA6;border-radius:14px;padding:18px 20px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 4px 16px rgba(29,91,166,0.3);">
+      <span style="font-size:15px;font-weight:700;color:#fff;">실 지급액</span>
+      <span style="font-size:22px;font-weight:800;color:#fff;">₩${c.netPay.toLocaleString()}</span>
+    </div>
+
+    <div style="display:flex;gap:8px;">
+      <button onclick="psPreview();" style="flex:1;padding:13px;background:${C2.sub};border:none;border-radius:12px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">📄 미리보기</button>
+      <button onclick="psSave();" style="flex:1;padding:13px;background:${C2.green};border:none;border-radius:12px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">✅ 확정 저장</button>
+    </div>
+    ` : ''}
+  `);
+}
+
+// 전역에서 호출 가능한 익월 말일 계산 함수
+window.calcPayDateGlobal = (month) => {
+  if (!month) return '';
+  const [y, m] = month.split('-').map(Number);
+  const nextMonth = m === 12 ? 1 : m + 1;
+  const nextYear  = m === 12 ? y + 1 : y;
+  const lastDay   = new Date(nextYear, nextMonth, 0).getDate();
+  return `${nextYear}-${String(nextMonth).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
+};
+
+
+
+
 window.psPreview = () => {
   const d = ps;
   const w = d.workerData;
@@ -1637,7 +1666,6 @@ window.psPreview = () => {
 
   const [yr, mo] = (d.month||'').split('-');
   const monthLabel = yr && mo ? `${yr}년 ${mo}월` : '-';
-  const empTypeBadge = w.empType==='office' ? '💼 사무직' : '🔧 현장직';
 
   const payRow = (l, v, note='') => `
     <tr>
@@ -1672,7 +1700,7 @@ window.psPreview = () => {
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #1D5BA6;">
         <div>
           <div style="font-size:20pt;font-weight:800;color:#1D5BA6;letter-spacing:2px;">급 여 명 세 서</div>
-          <div style="font-size:12pt;color:#5C6F8A;margin-top:4px;">${monthLabel} · 지급일: ${d.payDate||'미기재'}</div>
+          <div style="font-size:12pt;color:#5C6F8A;margin-top:4px;">${monthLabel} &nbsp;·&nbsp; 지급일: ${d.payDate||'미기재'}</div>
         </div>
         <img src="${JH_LOGO}" style="height:44px;object-fit:contain;"/>
       </div>
@@ -1693,7 +1721,6 @@ window.psPreview = () => {
             <td style="padding:7px 10px;border:1px solid #DDE4EF;font-weight:600;color:#5C6F8A;">소속/직급</td>
             <td style="padding:7px 10px;border:1px solid #DDE4EF;">${(w.dept||'-')+' / '+(w.rank||'-')}</td>
             <td style="padding:7px 10px;border:1px solid #DDE4EF;font-weight:600;color:#5C6F8A;">구분</td>
-            <td style="padding:7px 10px;border:1px solid #DDE4EF;">${empTypeBadge}</td>
           </tr>
           <tr>
             <td style="padding:7px 10px;border:1px solid #DDE4EF;font-weight:600;color:#5C6F8A;">입사일</td>
@@ -1769,9 +1796,7 @@ window.psPreview = () => {
           국민연금: 지급계×4.5% &nbsp;|&nbsp; 건강보험: 지급계×3.545% &nbsp;|&nbsp;
           장기요양: 건강보험×12.81% &nbsp;|&nbsp; 고용보험: 지급계×0.9%<br/>
           소득세: 간이세액표(부양가족 1인 기준) &nbsp;|&nbsp; 지방소득세: 소득세×10%<br/>
-          ${w.empType==='field'
-            ? '현장직 — 기본근로수당: 시급×8×5×4.345 | 고정야간수당: 시급×0.5×8×5×4.345 | 주휴수당: 시급×8×4.345'
-            : '사무직 — 기본근로수당: 시급×8×5×4.345 | 고정연장수당: 시급×12×4.345 | 주휴수당: 시급×8×4.345'}
+          '기본근로수당: 시급×8×5×4.345 | 연장수당: 시급×(10 또는 12)×4.345 | 주휴수당: 시급×8×4.345'
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
           <div style="font-size:10pt;color:#5C6F8A;">
@@ -1910,1106 +1935,99 @@ window.psViewDetail = (d, wid) => {
   Object.assign(ps, origPs);
 };
 
+window.psSave = async () => {
+  if (!ps.workerId||!ps.month) { alert('기준월과 근로자를 선택해 주세요.'); return; }
+  if (!window._db) { alert('Firebase 연결 필요'); return; }
+  if (!confirm(`${ps.workerData?.name}님의 ${ps.month} 급여명세서를 저장하시겠습니까?`)) return;
+  try {
+    const c = psCalcAll();
+    const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    await setDoc(doc(window._db, `payslips/${ps.workerId}/months`, ps.month), {
+      month: ps.month, payDate: ps.payDate, bankAccount: ps.bankAccount,
+      name: ps.workerData?.name||'', dept: ps.workerData?.dept||'',
+      rank: ps.workerData?.rank||'', empNo: ps.workerData?.empNo||'',
+      hourly: ps.annualData?.hourly||0, empType: ps.workerData?.empType||'field',
+      ...c.sal,
+      bonus: c.bonus, specialBonus: c.specialBonus, extraPay: c.extraPay,
+      grossPay: c.totalPay,
+      pension: c.pension, health: c.health, ltcare: c.ltcare, employ: c.employ,
+      dormitory: c.dormitory, incomeTax: c.incomeTax, localTax: c.localTax,
+      totalDeduct: c.totalDeduct, netPay: c.netPay,
+      savedAt: new Date().toISOString(),
+    });
+    alert('✅ 급여명세서 저장 완료!');
+    renderPayslipMain2();
+  } catch(e) { alert('오류: '+e.message); }
+};
+
+window.psViewWorker = async (wid, wname) => {
+  const el = document.getElementById('tab-payslip');
+  el.innerHTML = wrap2(`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+      ${backBtn2('renderPayslipListNew()','목록')}
+      <span style="font-size:13px;font-weight:700;color:${C2.text};">${wname} · 급여명세서</span>
+    </div>
+    <div id="ps-months-loading" style="text-align:center;padding:32px;color:${C2.mute};">⏳ 불러오는 중...</div>
+    <div id="ps-months-wrap"></div>
+  `);
+  try {
+    const { getDocs, collection, doc, deleteDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const snap = await getDocs(collection(window._db, `payslips/${wid}/months`));
+    const docs = []; snap.forEach(d=>docs.push({id:d.id,...d.data()}));
+    docs.sort((a,b)=>(b.month||b.id).localeCompare(a.month||a.id));
+    document.getElementById('ps-months-loading').style.display='none';
+
+    if (!docs.length) {
+      document.getElementById('ps-months-wrap').innerHTML='<div style="text-align:center;padding:32px;color:'+C2.mute+';">급여명세서가 없습니다.</div>';
+      return;
+    }
+
+    document.getElementById('ps-months-wrap').innerHTML = docs.map(d=>`
+      <div style="background:#fff;border-radius:12px;border:1px solid #DDE4EF;padding:14px;margin-bottom:8px;box-shadow:${C2.shadow};">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <span style="font-size:13px;font-weight:700;color:${C2.blue};">${d.month?.replace('-','년 ')}월</span>
+          <span style="font-size:10px;background:${C2.greenLt};color:${C2.green};padding:2px 8px;border-radius:8px;font-weight:700;">✅ 저장됨</span>
+        </div>
+        <div style="font-size:12px;color:${C2.sub};margin-bottom:4px;">지급계: ₩${Math.round(d.grossPay||0).toLocaleString()}</div>
+        <div style="font-size:13px;font-weight:700;color:#1D5BA6;margin-bottom:10px;">실지급액: ₩${Math.round(d.netPay||0).toLocaleString()}</div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="psViewDetail(${JSON.stringify(d).replace(/"/g,'&quot;')}, '${wid}')"
+            style="flex:1;padding:8px;background:#E8F0FB;border:1px solid #DDE4EF;border-radius:8px;font-size:12px;font-weight:600;color:${C2.blue};cursor:pointer;">📄 PDF 출력</button>
+          <button onclick="psDeleteSlip('${wid}','${d.id}','${wname}')"
+            style="padding:8px 12px;background:#FEE2E2;border:1px solid #fca5a5;border-radius:8px;font-size:12px;font-weight:600;color:#DC2626;cursor:pointer;">🗑 삭제</button>
+        </div>
+      </div>`).join('');
+  } catch(e) { document.getElementById('ps-months-loading').innerHTML=`<div style="color:#DC2626;">오류: ${e.message}</div>`; }
+};
+
+window.psViewDetail = (d, wid) => {
+  // 저장된 데이터로 미리보기
+  const savedC = {
+    sal: { basic:d.basic||0, fixedOt:d.fixedOt||0, fixedNight:d.fixedNight||0, weekly:d.weekly||0 },
+    bonus:d.bonus||0, specialBonus:d.specialBonus||0, extraPay:d.extraPay||0,
+    totalPay:d.grossPay||0, pension:d.pension||0, health:d.health||0,
+    ltcare:d.ltcare||0, employ:d.employ||0, dormitory:d.dormitory||0,
+    incomeTax:d.incomeTax||0, localTax:d.localTax||0,
+    totalDeduct:d.totalDeduct||0, netPay:d.netPay||0,
+  };
+  // ps 임시 세팅 후 psPreview 호출
+  const origPs = {...ps};
+  ps.workerData = { name:d.name||'', dept:d.dept||'', rank:d.rank||'', empNo:d.empNo||'',
+    hireDate:'', jumin:'', empType:d.empType||'field' };
+  ps.month = d.month||''; ps.payDate = d.payDate||''; ps.bankAccount = d.bankAccount||'';
+  ps.bonus=d.bonus||0; ps.specialBonus=d.specialBonus||0; ps.extraPay=d.extraPay||0;
+  ps.dormitory=d.dormitory||0;
+  ps.annualData = { hourly:d.hourly||0 };
+  psPreview();
+  Object.assign(ps, origPs);
+};
+
 window.psDeleteSlip = async (wid, mid, wname) => {
   if (!confirm(`${wname}님의 ${mid} 급여명세서를 삭제하시겠습니까?`)) return;
   const { doc, deleteDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
   await deleteDoc(doc(window._db, `payslips/${wid}/months`, mid));
   psViewWorker(wid, wname);
 };
-
-// ════════════════════════════════
-// 공통 유틸
-// ════════════════════════════════
-const C2 = {
-  blue:'#1D5BA6', blueLt:'#E8F0FB', border:'#DDE4EF',
-  text:'#1A2540', sub:'#5C6F8A', mute:'#9AAABF',
-  green:'#16A34A', greenLt:'#DCFCE7',
-  red:'#DC2626', redLt:'#FEE2E2',
-  shadow:'0 1px 4px rgba(29,91,166,0.08)',
-};
-const fmtD2 = s => { if(!s)return '-'; const d=new Date(s); return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`; };
-const inp2Style = `style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:9px 12px;font-size:13px;color:#1A2540;background:#FAFCFF;box-sizing:border-box;"`;
-const card2 = (title, body) => `<div style="background:#fff;border-radius:12px;border:1px solid #DDE4EF;padding:16px;margin-bottom:10px;box-shadow:${C2.shadow}"><div style="font-size:12px;font-weight:700;color:${C2.blue};margin-bottom:12px;">${title}</div>${body}</div>`;
-const field2 = (label, input) => `<div style="margin-bottom:10px;"><div style="font-size:11px;font-weight:700;color:#5C6F8A;margin-bottom:5px;">${label}</div>${input}</div>`;
-const backBtn2 = (fn, label='뒤로') => `<button onclick="${fn}" style="background:#E8F0FB;border:1px solid #DDE4EF;border-radius:8px;padding:5px 12px;color:#1D5BA6;font-size:12px;cursor:pointer;font-weight:600;">‹ ${label}</button>`;
-const selectMain = (icon, label, fn, desc) => `
-  <button onclick="${fn}" style="background:#fff;border:1px solid #DDE4EF;border-radius:14px;padding:18px 20px;text-align:left;cursor:pointer;box-shadow:${C2.shadow};display:flex;align-items:center;gap:16px;width:100%;">
-    <div style="width:48px;height:48px;background:${icon.includes('📂')?C2.greenLt:C2.blueLt};border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;">${icon}</div>
-    <div style="flex:1;"><div style="font-size:16px;font-weight:800;color:${C2.text};margin-bottom:3px;">${label}</div><div style="font-size:12px;color:${C2.sub};">${desc}</div></div>
-    <div style="font-size:20px;color:${C2.mute};">›</div>
-  </button>`;
-const wrap2 = (body) => `<div style="padding:16px;max-width:520px;margin:0 auto;">${body}</div>`;
-
-async function getWorkersList() {
-  if (!window._db) return [];
-  try {
-    const { getDocs, collection } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-    const snap = await getDocs(collection(window._db, 'workers'));
-    const docs = [];
-    snap.forEach(d => docs.push({id:d.id, ...d.data()}));
-    return docs.sort((a,b)=>(a.name||'').localeCompare(b.name||'','ko'));
-  } catch(e) { return []; }
-}
-
-// ════════════════════════════════
-// 👥 근로자 명부
-// ════════════════════════════════
-let rosterView = 'main'; // main | register | list
-let rosterForm = { name:'', jumin:'', phone:'', address:'', dept:'', rank:'', job:'', empType:'', hireDate:'' };
-
-window.renderRosterMain = () => {
-  const el = document.getElementById('tab-roster');
-  if (!el) return;
-  rosterView = 'main';
-  el.innerHTML = wrap2(`
-    <div style="font-size:13px;color:#5C6F8A;margin-bottom:16px;font-weight:600;">작업을 선택해 주세요</div>
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      ${selectMain('✏️','등록','renderRosterRegister()','근로자 기본 정보 신규 등록')}
-      ${selectMain('📂','조회','renderRosterList()','등록된 근로자 전체 조회 및 관리')}
-    </div>`);
-};
-
-window.renderRosterRegister = () => {
-  const el = document.getElementById('tab-roster');
-  rosterForm = { name:'', jumin:'', phone:'', address:'', dept:'', rank:'', job:'' };
-  el.innerHTML = wrap2(`
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
-      ${backBtn2('renderRosterMain()')}
-      <span style="font-size:13px;font-weight:700;color:${C2.text};">근로자 등록</span>
-    </div>
-    ${card2('👤 기본 정보', `
-      ${field2('이름', `<input type="text" placeholder="성명 입력" oninput="rosterForm.name=this.value" ${inp2Style}>`)}
-      ${field2('주민등록번호', `<input type="text" placeholder="000000-0000000" maxlength="14" oninput="rosterForm.jumin=fmtJumin2(this.value);this.value=rosterForm.jumin;" ${inp2Style}>`)}
-      ${field2('휴대폰번호', `<input type="text" placeholder="010-0000-0000" oninput="rosterForm.phone=fmtPhone2(this.value);this.value=rosterForm.phone;" ${inp2Style}>`)}
-      ${field2('주소', `<input type="text" placeholder="주소 입력" oninput="rosterForm.address=this.value" ${inp2Style}>`)}
-    `)}
-    ${card2('💼 소속 및 업무', `
-      ${field2('직원 구분', `
-        <div style="display:flex;gap:8px;margin-bottom:8px;">
-          <button onclick="rosterForm.empType='field';this.parentElement.querySelectorAll('button').forEach(b=>b.style.background='#F8FAFD');this.style.background='#E8F0FB';this.style.color='#1D5BA6';this.style.borderColor='#1D5BA6';"
-            style="flex:1;padding:9px;border-radius:8px;border:2px solid #DDE4EF;background:#F8FAFD;color:#5C6F8A;font-weight:700;font-size:13px;cursor:pointer;">
-            🔧 현장직
-          </button>
-          <button onclick="rosterForm.empType='office';this.parentElement.querySelectorAll('button').forEach(b=>b.style.background='#F8FAFD');this.style.background='#E8F0FB';this.style.color='#1D5BA6';this.style.borderColor='#1D5BA6';"
-            style="flex:1;padding:9px;border-radius:8px;border:2px solid #DDE4EF;background:#F8FAFD;color:#5C6F8A;font-weight:700;font-size:13px;cursor:pointer;">
-            💼 사무직
-          </button>
-        </div>
-      `)}
-      ${field2('소속', `<select onchange="rosterForm.dept=this.value" style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:9px 12px;font-size:13px;color:#1A2540;background:#FAFCFF;cursor:pointer;">
-        <option value="">선택하세요</option>
-        ${['사업본부','현장관리팀','인력배치팀','경영지원본부','경영총무팀','영업기획팀'].map(d=>`<option value="${d}">${d}</option>`).join('')}
-      </select>`)}
-      ${field2('직급', `<select onchange="rosterForm.rank=this.value" style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:9px 12px;font-size:13px;color:#1A2540;background:#FAFCFF;cursor:pointer;">
-        <option value="">선택하세요</option>
-        ${['과장','대리','사원'].map(r=>`<option value="${r}">${r}</option>`).join('')}
-      </select>`)}
-      ${field2('최초 입사일', `<input type="date" onchange="rosterForm.hireDate=this.value" ${inp2Style}>`)}
-      ${field2('담당업무', `<input type="text" placeholder="담당 업무 입력" oninput="rosterForm.job=this.value" ${inp2Style}>`)}
-    `)}
-    <button onclick="rosterSave()" style="width:100%;padding:13px;background:${C2.green};border:none;border-radius:12px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;">✅ 등록 완료</button>
-  `);
-};
-
-window.fmtJumin2 = v => { const d=v.replace(/-/g,'').replace(/\D/g,''); return d.length<=6?d:d.slice(0,6)+'-'+d.slice(6,13); };
-window.fmtPhone2 = v => {
-  const d = v.replace(/\D/g,'');
-  if (d.length <= 3)  return d;
-  if (d.length <= 7)  return d.slice(0,3)+'-'+d.slice(3);
-  if (d.length <= 11) return d.slice(0,3)+'-'+d.slice(3,7)+'-'+d.slice(7);
-  return d.slice(0,3)+'-'+d.slice(3,7)+'-'+d.slice(7,11);
-};
-
-
-window.rosterSave = async () => {
-  if (!rosterForm.name||!rosterForm.jumin) { alert('이름과 주민등록번호는 필수입니다.'); return; }
-  if (!window._db) { alert('Firebase 연결 필요'); return; }
-  try {
-    const { getDocs, collection, setDoc, doc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-    const wid = `${rosterForm.name}_${rosterForm.jumin.replace(/-/g,'')}`;
-    const snap = await getDocs(collection(window._db, 'workers'));
-    const nums = []; snap.forEach(d=>{const n=parseInt(d.data().empNo||'0');if(n)nums.push(n);});
-    const nextNo = String((nums.length?Math.max(...nums):0)+1).padStart(3,'0');
-    await setDoc(doc(window._db,'workers',wid), { ...rosterForm, empNo:nextNo, registeredAt:new Date().toISOString(), hireDate:rosterForm.hireDate||'' });
-    alert(`✅ 등록 완료! 사원번호: ${nextNo}`);
-    renderRosterMain();
-  } catch(e) { alert('오류: '+e.message); }
-};
-
-window.renderRosterList = async () => {
-  const el = document.getElementById('tab-roster');
-  el.innerHTML = wrap2(`
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-      ${backBtn2('renderRosterMain()')}
-      <span style="font-size:12px;color:${C2.sub};font-weight:600;">근로자 명부</span>
-    </div>
-    <div id="roster-list-loading" style="text-align:center;padding:32px;color:${C2.mute};">⏳ 불러오는 중...</div>
-    <div id="roster-list-wrap"></div>
-  `);
-
-  if (!window._db) { setTimeout(renderRosterList,500); return; }
-  try {
-    const { getDocs, collection, doc, deleteDoc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-    const snap = await getDocs(collection(window._db,'workers'));
-    const docs = []; snap.forEach(d=>docs.push({id:d.id,...d.data()}));
-    docs.sort((a,b)=>{
-      if(a.dept!==b.dept)return(a.dept||'').localeCompare(b.dept||'','ko');
-      if(a.empNo!==b.empNo)return(a.empNo||'').localeCompare(b.empNo||'');
-      return(a.rank||'').localeCompare(b.rank||'','ko');
-    });
-    window._rosterDocs2 = docs;
-
-    // 각 근로자의 계약 만료일 조회
-    const contractInfo = {};
-    for (const d of docs) {
-      try {
-        const lSnap = await getDocs(collection(window._db,`labor_contracts/${d.id}/contracts`));
-        let lLatest=''; lSnap.forEach(c=>{ const ed=c.data().endDate||''; if(ed>lLatest)lLatest=ed; });
-        const aSnap = await getDocs(collection(window._db,`annual_contracts/${d.id}/contracts`));
-        let aLatest=''; aSnap.forEach(c=>{ const ed=c.data().endDate||''; if(ed>aLatest)aLatest=ed; });
-        contractInfo[d.id] = { labor:lLatest, annual:aLatest, laborCnt:lSnap.size, annualCnt:aSnap.size };
-      } catch(e) { contractInfo[d.id]={labor:'',annual:'',laborCnt:0,annualCnt:0}; }
-    }
-
-    document.getElementById('roster-list-loading').style.display='none';
-    if (!docs.length) {
-      document.getElementById('roster-list-wrap').innerHTML='<div style="text-align:center;padding:40px;color:'+C2.mute+';">등록된 근로자가 없습니다.</div>';
-      return;
-    }
-
-    const rows = docs.map((d,i)=>{
-      const birth=(d.jumin||'').slice(0,6);
-      const bf=birth.length===6?`${birth.slice(0,2)}.${birth.slice(2,4)}.${birth.slice(4,6)}`:'-';
-      const ci=contractInfo[d.id]||{};
-      const now=new Date().toISOString().slice(0,10);
-      const lExp=ci.labor?ci.labor:null;
-      const aExp=ci.annual?ci.annual:null;
-      const lColor=lExp?(lExp<now?C2.red:C2.green):C2.mute;
-      const aColor=aExp?(aExp<now?C2.red:C2.green):C2.mute;
-      return `
-        <div style="background:${i%2===0?'#fff':'#F8FAFD'};border-bottom:1px solid #F0F4FA;padding:10px 12px;">
-          <div style="display:grid;grid-template-columns:0.5fr 1fr 0.8fr 0.5fr 0.7fr 0.9fr;gap:6px;align-items:center;margin-bottom:6px;">
-            <div>
-              <span id="eno-d-${d.id}" style="font-size:12px;font-weight:700;color:${C2.blue};cursor:pointer;text-decoration:underline;" onclick="rosterEmpNoEdit('${d.id}','${d.empNo||''}')">
-                ${d.empNo||'-'}
-              </span>
-              <div id="eno-e-${d.id}" style="display:none;flex;gap:2px;">
-                <input id="eno-i-${d.id}" value="${d.empNo||''}" style="width:35px;border:1px solid ${C2.blue};border-radius:4px;padding:2px 3px;font-size:10px;text-align:center;"/>
-                <button onclick="rosterEmpNoSave('${d.id}')" style="background:${C2.blue};border:none;border-radius:3px;color:#fff;font-size:9px;padding:2px 4px;cursor:pointer;">✓</button>
-              </div>
-            </div>
-            <div style="font-size:11px;color:${C2.text};">${d.dept||'-'}</div>
-            <div style="font-size:12px;font-weight:600;color:${C2.blue};cursor:pointer;text-decoration:underline;" onclick="rosterDetail('${d.id}')">${d.name||'-'}</div>
-            <div style="font-size:11px;color:${C2.sub};">${d.rank||'-'}</div>
-            <div style="font-size:10px;color:${C2.sub};">${bf}</div>
-            <div style="font-size:10px;color:${C2.sub};">${d.phone||'-'}</div>
-          </div>
-          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-            <span style="font-size:10px;background:${lExp?'#E8F0FB':'#F8FAFD'};color:${lColor};border:1px solid ${lExp?'#DDE4EF':'#EEE'};padding:2px 8px;border-radius:8px;font-weight:600;">
-              📝 근로계약 ${lExp?fmtD2(lExp)+' 만료':ci.laborCnt?'확인필요':'미작성'}
-            </span>
-            <span style="font-size:10px;background:${aExp?'#E8F0FB':'#F8FAFD'};color:${aColor};border:1px solid ${aExp?'#DDE4EF':'#EEE'};padding:2px 8px;border-radius:8px;font-weight:600;">
-              📋 연봉계약 ${aExp?fmtD2(aExp)+' 만료':ci.annualCnt?'확인필요':'미작성'}
-            </span>
-            <button onclick="rosterDelete('${d.id}','${d.name}')"
-              style="margin-left:auto;font-size:10px;background:${C2.redLt};color:${C2.red};border:1px solid #fca5a5;padding:2px 8px;border-radius:8px;cursor:pointer;font-weight:600;">
-              🗑 삭제
-            </button>
-          </div>
-        </div>`;
-    }).join('');
-
-    document.getElementById('roster-list-wrap').innerHTML=`
-      <div style="background:#fff;border-radius:12px;border:1px solid #DDE4EF;overflow:hidden;box-shadow:${C2.shadow};">
-        <div style="display:grid;grid-template-columns:0.5fr 1fr 0.8fr 0.5fr 0.7fr 0.9fr;background:#E8F0FB;padding:9px 12px;gap:6px;">
-          ${['사원번호','소속','이름','직급','생년월일','휴대폰'].map(h=>`<div style="font-size:10px;font-weight:700;color:${C2.blue};">${h}</div>`).join('')}
-        </div>
-        ${rows}
-      </div>
-      <div style="font-size:11px;color:${C2.mute};margin-top:6px;">💡 사원번호 클릭 수정 / 🔴 만료 🟢 유효</div>`;
-  } catch(e) { document.getElementById('roster-list-loading').innerHTML=`<div style="color:${C2.red};">오류: ${e.message}</div>`; }
-};
-
-
-// 한국 공휴일 (2024~2027 주요 공휴일)
-const KR_HOLIDAYS = new Set([
-  '2024-01-01','2024-02-09','2024-02-10','2024-02-11','2024-02-12',
-  '2024-03-01','2024-04-10','2024-05-05','2024-05-06','2024-05-15',
-  '2024-06-06','2024-08-15','2024-09-16','2024-09-17','2024-09-18',
-  '2024-10-03','2024-10-09','2024-12-25',
-  '2025-01-01','2025-01-28','2025-01-29','2025-01-30',
-  '2025-03-01','2025-05-05','2025-05-06','2025-06-06',
-  '2025-08-15','2025-10-03','2025-10-05','2025-10-06','2025-10-07','2025-10-09',
-  '2025-12-25',
-  '2026-01-01','2026-02-17','2026-02-18','2026-02-19','2026-02-20',
-  '2026-03-01','2026-03-02','2026-05-05','2026-05-25',
-  '2026-06-06','2026-08-17','2026-09-24','2026-09-25','2026-09-28',
-  '2026-10-09','2026-12-25',
-  '2027-01-01','2027-02-08','2027-02-09','2027-02-10','2027-03-01',
-  '2027-05-05','2027-05-13','2027-06-06','2027-08-16',
-  '2027-09-14','2027-09-15','2027-09-16','2027-10-04','2027-10-09','2027-12-25',
-]);
-
-function calcWorkDays(startStr, endStr) {
-  if (!startStr) return { days:0, months:0, years:0 };
-  const start = new Date(startStr);
-  const end   = endStr ? new Date(endStr) : new Date();
-  end.setHours(0,0,0,0); start.setHours(0,0,0,0);
-
-  // 연/월 계산
-  const diffMs   = end - start;
-  const totalDays = Math.floor(diffMs / 86400000);
-  const years    = Math.floor(totalDays / 365);
-  const months   = Math.floor((totalDays % 365) / 30);
-
-  // 실 근무일수 (주말·공휴일 제외)
-  let workDays = 0;
-  const cur = new Date(start);
-  while (cur <= end) {
-    const dow = cur.getDay();
-    const key = cur.toISOString().slice(0,10);
-    if (dow !== 0 && dow !== 6 && !KR_HOLIDAYS.has(key)) workDays++;
-    cur.setDate(cur.getDate()+1);
-  }
-  return { days:workDays, calDays:totalDays, years, months };
-}
-
-window.rosterDetail = (id) => {
-  const d = (window._rosterDocs2||[]).find(x=>x.id===id);
-  if (!d) return;
-  const w = calcWorkDays(d.hireDate);
-  const empTypeBadge = d.empType==='field'
-    ? `<span style="font-size:11px;background:#FEF3C7;color:#92400E;padding:2px 8px;border-radius:8px;font-weight:700;">🔧 현장직</span>`
-    : d.empType==='office'
-    ? `<span style="font-size:11px;background:#E8F0FB;color:#1D5BA6;padding:2px 8px;border-radius:8px;font-weight:700;">💼 사무직</span>`
-    : '';
-
-  // 모달 표시
-  const existing = document.getElementById('roster-detail-modal');
-  if (existing) existing.remove();
-
-  const modal = document.createElement('div');
-  modal.id = 'roster-detail-modal';
-  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
-  // 수정 가능한 상세 모달
-  const DEPTS2 = ['사업본부','현장관리팀','인력배치팀','경영지원본부','경영총무팀','영업기획팀'];
-  const RANKS2 = ['과장','대리','사원'];
-  window._editRosterTarget = {...d};
-
-  modal.innerHTML = `
-    <div style="background:#fff;border-radius:16px;padding:24px;width:100%;max-width:400px;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-        <div>
-          <div style="font-size:16px;font-weight:800;color:#1A2540;">${d.name}</div>
-          <div style="font-size:12px;color:#5C6F8A;margin-top:2px;">${d.dept||''} · ${d.rank||''} &nbsp; ${empTypeBadge}</div>
-        </div>
-        <button onclick="document.getElementById('roster-detail-modal').remove()"
-          style="background:#F4F7FB;border:none;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:16px;color:#5C6F8A;">✕</button>
-      </div>
-
-      <!-- 재직 정보 -->
-      <div style="background:#F4F7FB;border-radius:12px;padding:14px;margin-bottom:10px;">
-        <div style="font-size:11px;font-weight:700;color:#1D5BA6;margin-bottom:10px;letter-spacing:1px;">📅 재직 정보</div>
-        <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #DDE4EF;font-size:12px;">
-          <span style="color:#5C6F8A;font-weight:600;min-width:80px;">최초 입사일</span>
-          <input type="date" value="${d.hireDate||''}" onchange="window._editRosterTarget.hireDate=this.value;"
-            style="border:1px solid #DDE4EF;border-radius:6px;padding:3px 6px;font-size:12px;color:#1A2540;"/>
-        </div>
-        <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #DDE4EF;font-size:12px;">
-          <span style="color:#5C6F8A;font-weight:600;">재직 기간</span>
-          <span style="color:#1A2540;font-weight:600;">${d.hireDate ? `${w.years>0?w.years+'년 ':''}${w.months}개월 (${w.calDays}일)` : '-'}</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #DDE4EF;font-size:12px;">
-          <span style="color:#5C6F8A;font-weight:600;">실 근무일수</span>
-          <span style="color:#1D5BA6;font-weight:700;">${d.hireDate ? w.days.toLocaleString()+'일' : '-'}</span>
-        </div>
-        <div style="padding:8px 0 2px;">
-          <div style="font-size:10px;font-weight:700;color:#1D5BA6;margin-bottom:6px;letter-spacing:1px;">💰 퇴직금 (예상)</div>
-          <div style="background:#fff;border-radius:8px;padding:10px 12px;border:1px solid #DDE4EF;">
-            <div style="font-size:11px;color:#5C6F8A;margin-bottom:4px;">계산식: 최근 3개월 평균 지급계 × 실 근무일수</div>
-            <div style="font-size:12px;color:#9AAABF;font-style:italic;">
-              ※ 급여명세서 등록 후 자동 계산됩니다
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 수정 가능한 기본 정보 -->
-      <div style="background:#F4F7FB;border-radius:12px;padding:14px;margin-bottom:10px;">
-        <div style="font-size:11px;font-weight:700;color:#1D5BA6;margin-bottom:10px;letter-spacing:1px;">👤 기본 정보 수정</div>
-        ${[
-          {label:'이름', key:'name', type:'text', val:d.name||''},
-          {label:'주민번호', key:'jumin', type:'text', val:d.jumin||''},
-          {label:'휴대폰', key:'phone', type:'text', val:d.phone||''},
-          {label:'주소', key:'address', type:'text', val:d.address||''},
-        ].map(f=>`
-          <div style="display:flex;align-items:center;padding:6px 0;border-bottom:1px solid #DDE4EF;gap:8px;">
-            <span style="color:#5C6F8A;font-weight:600;min-width:68px;font-size:12px;flex-shrink:0;">${f.label}</span>
-            <input type="${f.type}" value="${f.val}" oninput="window._editRosterTarget['${f.key}']=this.value;"
-              style="flex:1;border:1px solid #DDE4EF;border-radius:6px;padding:4px 8px;font-size:12px;color:#1A2540;"/>
-          </div>`).join('')}
-        <div style="display:flex;align-items:center;padding:6px 0;border-bottom:1px solid #DDE4EF;gap:8px;">
-          <span style="color:#5C6F8A;font-weight:600;min-width:68px;font-size:12px;flex-shrink:0;">소속</span>
-          <select onchange="window._editRosterTarget.dept=this.value;"
-            style="flex:1;border:1px solid #DDE4EF;border-radius:6px;padding:4px 8px;font-size:12px;color:#1A2540;cursor:pointer;">
-            ${DEPTS2.map(dep=>`<option value="${dep}" ${d.dept===dep?'selected':''}>${dep}</option>`).join('')}
-          </select>
-        </div>
-        <div style="display:flex;align-items:center;padding:6px 0;border-bottom:1px solid #DDE4EF;gap:8px;">
-          <span style="color:#5C6F8A;font-weight:600;min-width:68px;font-size:12px;flex-shrink:0;">직급</span>
-          <select onchange="window._editRosterTarget.rank=this.value;"
-            style="flex:1;border:1px solid #DDE4EF;border-radius:6px;padding:4px 8px;font-size:12px;color:#1A2540;cursor:pointer;">
-            ${RANKS2.map(r=>`<option value="${r}" ${d.rank===r?'selected':''}>${r}</option>`).join('')}
-          </select>
-        </div>
-        <div style="display:flex;align-items:center;padding:6px 0;gap:8px;">
-          <span style="color:#5C6F8A;font-weight:600;min-width:68px;font-size:12px;flex-shrink:0;">구분</span>
-          <div style="display:flex;gap:6px;flex:1;">
-            <button onclick="window._editRosterTarget.empType='field';this.parentElement.querySelectorAll('button').forEach(b=>{b.style.background='#F8FAFD';b.style.color='#5C6F8A';b.style.borderColor='#DDE4EF';});this.style.background='#E8F0FB';this.style.color='#1D5BA6';this.style.borderColor='#1D5BA6';"
-              style="flex:1;padding:6px;border-radius:7px;border:2px solid ${d.empType==='field'?'#1D5BA6':'#DDE4EF'};background:${d.empType==='field'?'#E8F0FB':'#F8FAFD'};color:${d.empType==='field'?'#1D5BA6':'#5C6F8A'};font-size:12px;font-weight:700;cursor:pointer;">
-              🔧 현장직
-            </button>
-            <button onclick="window._editRosterTarget.empType='office';this.parentElement.querySelectorAll('button').forEach(b=>{b.style.background='#F8FAFD';b.style.color='#5C6F8A';b.style.borderColor='#DDE4EF';});this.style.background='#E8F0FB';this.style.color='#1D5BA6';this.style.borderColor='#1D5BA6';"
-              style="flex:1;padding:6px;border-radius:7px;border:2px solid ${d.empType==='office'?'#1D5BA6':'#DDE4EF'};background:${d.empType==='office'?'#E8F0FB':'#F8FAFD'};color:${d.empType==='office'?'#1D5BA6':'#5C6F8A'};font-size:12px;font-weight:700;cursor:pointer;">
-              💼 사무직
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <button onclick="rosterDetailSave('${d.id}')"
-        style="width:100%;padding:12px;background:#1D5BA6;border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(29,91,166,0.25);">
-        💾 수정 저장
-      </button>
-    </div>`;
-  document.body.appendChild(modal);
-  modal.addEventListener('click', e => { if(e.target===modal) modal.remove(); });
-};
-
-window.rosterDetailSave = async (id) => {
-  if (!window._db) { alert('Firebase 연결 필요'); return; }
-  try {
-    const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-    await setDoc(doc(window._db,'workers',id), { ...window._editRosterTarget }, { merge:true });
-    document.getElementById('roster-detail-modal').remove();
-    alert('✅ 수정 완료!');
-    renderRosterList(); // 목록 새로고침
-  } catch(e) { alert('저장 오류: '+e.message); }
-};
-window.rosterEmpNoEdit = (id,cur) => {
-  document.getElementById(`eno-d-${id}`).style.display='none';
-  document.getElementById(`eno-e-${id}`).style.display='flex';
-};
-window.rosterEmpNoSave = async (id) => {
-  const v=document.getElementById(`eno-i-${id}`).value.trim();
-  if(!v)return;
-  const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-  await setDoc(doc(window._db,'workers',id),{empNo:v},{merge:true});
-  renderRosterList();
-};
-window.rosterDelete = async (id, name) => {
-  if(!confirm(`${name}님을 명부에서 삭제하시겠습니까?\n(계약서 데이터는 유지됩니다.)`))return;
-  const { doc, deleteDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-  await deleteDoc(doc(window._db,'workers',id));
-  renderRosterList();
-};
-
-// ════════════════════════════════
-// 📝 근로계약서 (재구성)
-// ════════════════════════════════
-let laborView2 = 'main';
-let laborForm2 = { workerId:'', name:'', jumin:'', phone:'', address:'', dept:'', rank:'', job:'', empType:'field', startDate:'', endDate:'', contractDate:'', hourly:'', salary:'', signData:null };
-let laborSelectedWorker2 = null;
-let laborSignCanvas2 = null, laborSignDrawing2 = false;
-
-window.renderLaborMain = () => {
-  const el = document.getElementById('tab-labor');
-  if(!el)return;
-  laborView2='main';
-  el.innerHTML = wrap2(`
-    <div style="font-size:13px;color:${C2.sub};margin-bottom:16px;font-weight:600;">작업을 선택해 주세요</div>
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      ${selectMain('✏️','등록','renderLaborRegister()','근로자 명부에서 선택하여 근로계약서 작성')}
-      ${selectMain('📂','조회','renderLaborList2()','저장된 근로계약서 조회 및 관리')}
-    </div>`);
-};
-
-window.renderLaborRegister = async () => {
-  const el = document.getElementById('tab-labor');
-  laborForm2 = { workerId:'', name:'', jumin:'', phone:'', address:'', dept:'', rank:'',
-    job:'', empType:'field', startDate:'', endDate:'', contractDate:'', hourly:'', salary:'', signData:null };
-  const workers = await getWorkersList();
-  window._laborWorkers2 = workers;
-  window.laborRefreshForm2 = () => renderLaborForm(el, workers);
-  renderLaborForm(el, workers);
-};
-
-function renderLaborForm(el, workers) {
-  const sal = laborSalaryPreviewHtml(laborForm2);
-  el.innerHTML = wrap2(`
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
-      ${backBtn2('renderLaborMain()')}
-      <span style="font-size:13px;font-weight:700;color:${C2.text};">근로계약서 작성</span>
-    </div>
-    ${card2('👤 근로자 선택', `
-      <select onchange="laborWorkerSelect2(this.value)"
-        style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:10px 12px;font-size:13px;font-weight:600;color:${C2.blue};background:#E8F0FB;cursor:pointer;">
-        <option value="">근로자를 선택하세요</option>
-        ${(workers||[]).map(w=>`<option value="${w.id}" ${laborForm2.workerId===w.id?'selected':''}>${w.empNo||'-'} · ${w.name} (${w.rank||''})</option>`).join('')}
-      </select>
-      ${laborForm2.name?`<div style="margin-top:10px;background:#F8FAFD;border-radius:8px;overflow:hidden;">
-        ${[['이름',laborForm2.name],['소속',laborForm2.dept||'-'],['직급',laborForm2.rank||'-'],
-           ['구분',laborForm2.empType==='office'?'💼 사무직':'🔧 현장직'],
-           ['주소',laborForm2.address||'-']].map(([l,v])=>`
-          <div style="display:flex;padding:7px 12px;border-bottom:1px solid #F0F4FA;font-size:12px;">
-            <span style="color:${C2.sub};min-width:60px;font-weight:600;">${l}</span>
-            <span style="color:${C2.text};">${v}</span>
-          </div>`).join('')}
-      </div>`:''}
-    `)}
-    ${laborForm2.name?`
-    ${card2('📅 계약 기간', `
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
-        ${field2('시작일',`<input type="date" value="${laborForm2.startDate}" onchange="laborForm2.startDate=this.value" style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:9px 8px;font-size:12px;box-sizing:border-box;">`)}
-        ${field2('종료일',`<input type="date" value="${laborForm2.endDate}" onchange="laborForm2.endDate=this.value" style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:9px 8px;font-size:12px;box-sizing:border-box;">`)}
-      </div>
-      ${field2('계약 체결일',`<input type="date" value="${laborForm2.contractDate}" onchange="laborForm2.contractDate=this.value" ${inp2Style}>`)}
-    `)}
-    ${card2('💼 담당 업무', field2('담당업무',`<input type="text" value="${laborForm2.job}" placeholder="담당 업무 입력" oninput="laborForm2.job=this.value" ${inp2Style}>`))}
-    ${card2('💰 시급 입력', `
-      ${field2('시급 (원)',`<input type="number" value="${laborForm2.hourly}" placeholder="시급 입력 (숫자만)"
-          oninput="laborForm2.hourly=this.value;laborUpdateSalaryPreview();" ${inp2Style}>`)}
-      <div id="labor-sal-preview2">${sal}</div>
-    `)}
-    ${card2('✍️ 근로자 서명', `
-      <div style="text-align:center;">
-        ${laborForm2.signData
-          ?`<img src="${laborForm2.signData}" style="width:160px;height:60px;object-fit:contain;border:1px solid #DDE4EF;border-radius:8px;"/>
-             <br/><button onclick="laborForm2.signData=null;window.laborRefreshForm2&&window.laborRefreshForm2();" style="font-size:11px;color:${C2.mute};background:none;border:none;cursor:pointer;text-decoration:underline;">지우기</button>`
-          :`<button onclick="laborOpenSign2();" style="padding:10px 24px;background:#E8F0FB;border:2px dashed #1D5BA6;border-radius:10px;color:#1D5BA6;font-size:13px;font-weight:600;cursor:pointer;">✍️ 서명하기</button>`}
-      </div>
-    `)}
-    <div style="display:flex;gap:8px;">
-      <button onclick="laborPreview2();" style="flex:1;padding:13px;background:${C2.sub};border:none;border-radius:12px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">📄 미리보기</button>
-      <button onclick="laborSave2();" style="flex:1;padding:13px;background:${C2.green};border:none;border-radius:12px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">✅ 확정 저장</button>
-    </div>
-    <!-- 서명 팝업 -->
-    <div id="labor-sign2-popup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
-      <div style="background:#fff;border-radius:16px;padding:24px;width:320px;text-align:center;">
-        <div style="font-size:14px;font-weight:700;color:${C2.text};margin-bottom:16px;">✍️ 서명</div>
-        <div style="position:relative;border:1px solid #DDE4EF;border-radius:8px;overflow:hidden;background:#FAFCFF;margin-bottom:12px;">
-          <canvas id="labor-sign2-canvas" width="272" height="100" style="display:block;cursor:crosshair;touch-action:none;"></canvas>
-          <div id="labor-sign2-hint" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;">
-            <span style="font-size:12px;color:${C2.mute};">손가락으로 서명하세요</span>
-          </div>
-        </div>
-        <div style="display:flex;gap:8px;">
-          <button onclick="laborClearSign2()" style="flex:1;padding:10px;background:#F8FAFD;border:1px solid #DDE4EF;border-radius:8px;font-size:13px;cursor:pointer;color:${C2.sub};">지우기</button>
-          <button onclick="laborCancelSign2()" style="flex:1;padding:10px;background:#F8FAFD;border:1px solid #DDE4EF;border-radius:8px;font-size:13px;cursor:pointer;color:${C2.sub};">취소</button>
-          <button onclick="laborSaveSign2()" style="flex:1;padding:10px;background:${C2.blue};border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;color:#fff;">확인</button>
-        </div>
-      </div>
-    </div>`:''}`);
-  setTimeout(()=>{const p=document.getElementById('labor-sign2-popup');if(p)p.style.display='none';},50);
-}
-
-window.laborWorkerSelect2 = (wid) => {
-  const w = (window._laborWorkers2||[]).find(x=>x.id===wid);
-  if (!w) return;
-  laborForm2.workerId = wid;
-  laborForm2.name     = w.name    || '';
-  laborForm2.jumin    = w.jumin   || '';
-  laborForm2.phone    = w.phone   || '';
-  laborForm2.address  = w.address || '';
-  laborForm2.dept     = w.dept    || '';
-  laborForm2.rank     = w.rank    || '';
-  laborForm2.job      = w.job     || '';
-  laborForm2.empType  = w.empType || 'field';
-  if (window.laborRefreshForm2) window.laborRefreshForm2();
-};
-
-window.laborUpdateSalaryPreview = () => {
-  const sal = calcAnnualSalary(Number(laborForm2.hourly||0), laborForm2.empType||'field');
-  laborForm2.salary = sal.annual;
-  const el = document.getElementById('labor-sal-preview2');
-  if (!el) return;
-  el.innerHTML = laborSalaryPreviewHtml(laborForm2);
-};
-
-
-window.laborOpenSign2 = () => {
-  const p=document.getElementById('labor-sign2-popup'); if(!p)return; p.style.display='flex';
-  setTimeout(()=>{
-    laborSignCanvas2=document.getElementById('labor-sign2-canvas'); if(!laborSignCanvas2)return;
-    const ctx=laborSignCanvas2.getContext('2d'); ctx.clearRect(0,0,laborSignCanvas2.width,laborSignCanvas2.height);
-    const hint=document.getElementById('labor-sign2-hint');
-    const gp=e=>{const r=laborSignCanvas2.getBoundingClientRect();const t=e.touches?.[0]||e;return{x:(t.clientX-r.left)*(laborSignCanvas2.width/r.width),y:(t.clientY-r.top)*(laborSignCanvas2.height/r.height)};};
-    laborSignCanvas2.onmousedown=e=>{laborSignDrawing2=true;const p=gp(e);ctx.beginPath();ctx.moveTo(p.x,p.y);};
-    laborSignCanvas2.onmousemove=e=>{if(!laborSignDrawing2)return;ctx.lineWidth=2.5;ctx.lineCap='round';ctx.strokeStyle='#1A2540';const p=gp(e);ctx.lineTo(p.x,p.y);ctx.stroke();if(hint)hint.style.display='none';};
-    laborSignCanvas2.onmouseup=()=>laborSignDrawing2=false;
-    laborSignCanvas2.onmouseleave=()=>laborSignDrawing2=false;
-    laborSignCanvas2.addEventListener('touchstart',e=>{e.preventDefault();laborSignDrawing2=true;const p=gp(e);ctx.beginPath();ctx.moveTo(p.x,p.y);},{passive:false});
-    laborSignCanvas2.addEventListener('touchmove',e=>{e.preventDefault();if(!laborSignDrawing2)return;ctx.lineWidth=2.5;ctx.lineCap='round';ctx.strokeStyle='#1A2540';const p=gp(e);ctx.lineTo(p.x,p.y);ctx.stroke();if(hint)hint.style.display='none';},{passive:false});
-    laborSignCanvas2.addEventListener('touchend',e=>{e.preventDefault();laborSignDrawing2=false;},{passive:false});
-  },100);
-};
-window.laborClearSign2=()=>{if(laborSignCanvas2){laborSignCanvas2.getContext('2d').clearRect(0,0,272,100);const h=document.getElementById('labor-sign2-hint');if(h)h.style.display='flex';}};
-window.laborCancelSign2=()=>{const p=document.getElementById('labor-sign2-popup');if(p)p.style.display='none';};
-window.laborSaveSign2=()=>{if(laborSignCanvas2)laborForm2.signData=laborSignCanvas2.toDataURL();const p=document.getElementById('labor-sign2-popup');if(p)p.style.display='none';if(window.laborRefreshForm2)window.laborRefreshForm2();};
-
-
-// 근로계약서 시급 기반 급여 미리보기
-function laborSalaryPreviewHtml(f) {
-  const empType = f.empType || (window._laborWorkers2||[]).find(w=>w.id===f.workerId)?.empType || 'field';
-  const sal = calcAnnualSalary(Number(f.hourly||0), empType);
-  if (!sal.annual) return '';
-
-  const isOffice = empType === 'office';
-  const empLabel = isOffice ? '💼 사무직' : '🔧 현장직';
-  const rows = isOffice
-    ? [['기본근로수당 (시급×8×5×4.345)', sal.basic],
-       ['고정연장수당 (시급×12×4.345)', sal.fixedOt],
-       ['고정야간수당', null],
-       ['주휴수당 (시급×8×4.345)', sal.weekly],
-       ['월 지급계', sal.total],
-       ['계약연봉 (월×12)', sal.annual]]
-    : [['기본근로수당 (시급×8×5×4.345)', sal.basic],
-       ['고정연장수당', null],
-       ['고정야간수당 (시급×0.5×8×5×4.345)', sal.fixedNight],
-       ['주휴수당 (시급×8×4.345)', sal.weekly],
-       ['월 지급계', sal.total],
-       ['계약연봉 (월×12)', sal.annual]];
-
-  return '<div style="margin-top:8px;border-radius:8px;overflow:hidden;border:1px solid #DDE4EF;">'
-    + '<div style="background:#1D5BA6;padding:7px 12px;font-size:11px;font-weight:700;color:#fff;">' + empLabel + ' 급여 구성</div>'
-    + rows.map(function(r){
-        var l=r[0], v=r[1];
-        var isTotal = l.includes('지급계') || l.includes('연봉');
-        var isNull  = v === null;
-        return '<div style="display:flex;justify-content:space-between;padding:7px 12px;border-bottom:1px solid #F0F4FA;font-size:11px;background:'+(isTotal?'#E8F0FB':'#fff')+';"><span style="color:#5C6F8A;">'+l+'</span>'
-          +'<span style="color:'+(l.includes('연봉')?'#1D5BA6':isTotal?'#1D5BA6':isNull?'#9AAABF':'#1A2540')+';font-weight:'+(isTotal?700:400)+';">'+(isNull?'—':'₩'+Math.round(v).toLocaleString())+'</span></div>';
-      }).join('')
-    + '</div>';
-}
-
-window.laborUpdateSalaryPreview = () => {
-  const empType = laborForm2.empType || (window._laborWorkers2||[]).find(w=>w.id===laborForm2.workerId)?.empType || 'field';
-  const sal = calcAnnualSalary(Number(laborForm2.hourly||0), empType);
-  laborForm2.salary = sal.annual;
-  const el = document.getElementById('labor-sal-preview2');
-  if (!el) return;
-  el.innerHTML = laborSalaryPreviewHtml(laborForm2);
-};
-window.laborSave2 = async () => {
-  if(!laborForm2.workerId||!laborForm2.contractDate){alert('근로자와 계약일자는 필수입니다.');return;}
-  if(!window._db){alert('Firebase 연결 필요');return;}
-  if(!confirm(`${laborForm2.name}님의 근로계약서를 저장하시겠습니까?`))return;
-  try {
-    const { doc, setDoc, collection } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-    const contractId = laborForm2.contractDate.replace(/-/g,'');
-    const _emp = (window._laborWorkers2||[]).find(w=>w.id===laborForm2.workerId);
-    laborForm2.salary = calcAnnualSalary(Number(laborForm2.hourly||0), _emp?.empType||'field').annual;
-    await setDoc(doc(window._db,`labor_contracts/${laborForm2.workerId}/contracts`,contractId), {
-      ...laborForm2, savedAt:new Date().toISOString(), savedBy:'admin'
-    });
-    alert('✅ 근로계약서 저장 완료!');
-    renderLaborMain();
-  } catch(e){alert('오류: '+e.message);}
-};
-
-window.laborPreview2 = () => {
-  const f=laborForm2;
-  const fmtDp=s=>{if(!s)return'____년 __월 __일';const d=new Date(s);return`${d.getFullYear()}년 ${String(d.getMonth()+1).padStart(2,'0')}월 ${String(d.getDate()).padStart(2,'0')}일`;};
-  const ul=(v,w)=>`<span style="display:inline-block;min-width:${w||80}px;border-bottom:1px solid #333;text-align:center;padding:0 2px;">${v||''}</span>`;
-  const signImg=f.signData?`<img src="${f.signData}" style="width:100px;height:40px;object-fit:contain;opacity:0.9;vertical-align:middle;"/>`:`<span style="display:inline-block;width:100px;height:40px;border:1px dashed #ccc;vertical-align:middle;"></span>`;
-  const win=window.open('','_blank');
-  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>근로계약서 - ${f.name}</title>
-    <style>body{margin:0;font-family:'Malgun Gothic',Arial,sans-serif;background:#888;display:flex;flex-direction:column;align-items:center;padding:20px;}.a4{width:210mm;min-height:297mm;background:#fff;padding:20mm 22mm;box-shadow:0 4px 24px rgba(0,0,0,.2);font-size:10pt;line-height:1.9;color:#1A2540;}@media print{body{background:#fff;padding:0;}.toolbar{display:none;}.a4{box-shadow:none;padding:15mm 20mm;width:100%;}}</style>
-    </head><body>
-    <div class="toolbar" style="margin-bottom:12px;display:flex;gap:8px;">
-      <button onclick="window.close()" style="padding:8px 16px;background:#fff;border:1px solid #DDE4EF;border-radius:8px;cursor:pointer;">← 닫기</button>
-      <button onclick="window.print()" style="padding:8px 16px;background:#1D5BA6;border:none;border-radius:8px;color:#fff;font-weight:700;cursor:pointer;">🖨 인쇄/PDF</button>
-    </div>
-    <div class="a4">
-      <div style="text-align:center;margin-bottom:28px;"><div style="font-size:20pt;font-weight:800;letter-spacing:6px;">근 로 계 약 서</div><div style="width:60px;height:2px;background:#333;margin:8px auto 0;"></div></div>
-      <p style="margin-bottom:12px;">제이에이치솔루션 (이하"갑"이라 한다.)과 근로자 ${ul(f.name,80)} (이하 "을"이라 한다.)는 근로자보호 등에 관한 법률에 의거 다음과 같이 PJT 계약직 근로계약을 체결한다.</p>
-      <p style="font-weight:700;margin:14px 0 5px;">제1조 【의 무】</p><p style="margin-bottom:8px;">"을"은 "갑"의 정규직원으로서 "갑"의 사규에 따른 제규정 및 취업규칙에 정해진 근로조건을 승인하고 근로를 성실히 이행할 의무를 진다.</p>
-      <p style="font-weight:700;margin:14px 0 5px;">제2조 【근로기간】</p><p style="margin-bottom:4px;">1. 근로계약기간 : ${fmtDp(f.startDate)} ~ ${fmtDp(f.endDate)}</p><p style="margin-bottom:8px;">2. PJT계약근로기간이 만료되고 계속 근무의 필요가 있을 때에는 당사자간의 합의 하에 재계약 할 수 있다.</p>
-      <p style="font-weight:700;margin:14px 0 5px;">제3조 【근무장소 및 대상업무】</p><p style="margin-bottom:4px;">1. "을"은 "갑"이 제공하는 근무장소에서 근무하며, "을"은 이에 따른다.</p><p style="margin-bottom:4px;">&nbsp;&nbsp;1) 소속 : ${ul(f.dept,180)} &nbsp; 직급 : ${ul(f.rank,60)}</p><p style="margin-bottom:8px;">&nbsp;&nbsp;2) 담당 업무 : ${ul(f.job,160)}</p>
-      <p style="font-weight:700;margin:14px 0 5px;">제4조 【임 금】</p><p style="margin-bottom:4px;">- 계약연봉 : ${f.salary?`일금 ${Number(f.salary).toLocaleString()}원`:ul('',180)}</p><p style="margin-bottom:4px;">- 세부 지급 사항은 연봉계약서를 기준으로 한다. 임금 지급일 : 익월 말일</p>
-      <p style="font-weight:700;margin:14px 0 5px;">제5조 【사회보험】</p><p style="margin-bottom:8px;">☑ 고용보험 &nbsp; ☑ 산재보험 &nbsp; ☑ 국민연금 &nbsp; ☑ 건강보험</p>
-      <p style="font-weight:700;margin:12px 0 4px;">제6조 【근로시간】</p>
-      <p style="margin-bottom:6px;">근로기준법 제50조에 따라 주 40시간 근로를 원칙으로 한다. 다만 현장 여건에 따라 근로기준법 제53조에 의거하여 최대 12시간까지 연장하여 근로할 수 있다. (식사 및 휴게시간은 근로시간에서 제외)</p>
-      <p style="font-weight:700;margin:12px 0 4px;">제7조 【휴게시간】</p>
-      <p style="margin-bottom:6px;">4시간 근무마다 30분 휴식, 중식 1시간 의무지급을 원칙으로 한다. 다만, 현장 상황에 따라 유연하게 적용한다.</p>
-      <p style="font-weight:700;margin:12px 0 4px;">제8조 【퇴직금】</p>
-      <p style="margin-bottom:4px;">1. "갑"은 "을"의 1년 이상 계속 근로에 대하여 퇴직 전 3개월 평균임금의 30일분을 퇴직금으로 지급한다. (단, 별도로 지급되는 수당은 퇴직금 계산에서 제외된다.)</p>
-      <p style="margin-bottom:6px;">2. 4대보험 개인의 선택으로 가입하지 않을 시 퇴직금은 지급하지 아니한다.</p>
-      <p style="font-weight:700;margin:12px 0 4px;">제9조 【휴일 및 휴가】</p>
-      <p style="margin-bottom:4px;">"을"의 휴일과 휴가는 근로자계약의 내용에 따라 결정되며, 회사는 연차휴가와 관련하여 근로자대표와의 합의에 의하여 특정일을 연차휴가로 대체할 수 있다.</p>
-      <p style="margin-bottom:4px;">- 계속 근로 1년 이상, 해당 기간 동안 80% 이상이 될 경우 15일의 유급휴가가 부여된다.</p>
-      <p style="margin-bottom:6px;">- "갑"은 계속하여 근로한 기간이 1년 미만인 근로자에게 1개월 개근 시 1일의 유급휴가를 부여한다.</p>
-      <p style="font-weight:700;margin:12px 0 4px;">제10조 【지휘감독 및 근로조건】</p>
-      <p style="margin-bottom:6px;">"을"은 "갑"의 소속 단기계약근로자로서 사업주의 지휘감독을 받으며, "갑"의 취업규칙 및 근무지의 제규정을 준수하여야 한다.</p>
-      <p style="font-weight:700;margin:12px 0 4px;">제11조 【귀책사유】</p>
-      <p style="margin-bottom:2px;">1. 직무상의 의무를 위반하거나 근무에 태만하였을 때</p>
-      <p style="margin-bottom:2px;">2. "갑" 및 사용사업주의 이미지를 크게 손상하거나 재산상의 피해를 주었을 때</p>
-      <p style="margin-bottom:2px;">3. 비밀누설 및 폭행, 파업 등 규율과 질서를 문란케 하였을 때</p>
-      <p style="margin-bottom:2px;">4. 취업기간 중 형사상 유죄판결을 받았을 때</p>
-      <p style="margin-bottom:2px;">5. 채용조건에 구비된 각종문서가 위조 또는 변조, 허위사실 등이 기재되었을 때</p>
-      <p style="margin-bottom:2px;">6. 사용사업주의 허가 없이 3일 이상 결근하였을 때</p>
-      <p style="margin-bottom:2px;">7. 무단지각, 조퇴, 외출을 월 3회 이상 하였을 때</p>
-      <p style="margin-bottom:6px;">8. 계약기간 내에 동종업체로 직접 계약 및 이직하였을 때</p>
-      <p style="font-weight:700;margin:12px 0 4px;">제12조 【손해배상】</p>
-      <p style="margin-bottom:6px;">"을"의 제11조 귀책사유로 "갑" 및 사용사업주에게 재산상의 손해를 끼쳤을 경우에는 전적으로 "을"이 책임지며, 이를 지키지 않은 경우에는 "갑"은 "을" 또는 "을"의 보증인에게 월급의 3배의 책임을 물 수 있다.</p>
-      <p style="font-weight:700;margin:12px 0 4px;">제13조 【재정보증】</p>
-      <p style="margin-bottom:4px;">- "을"은 1명의 재정보증인을 설정 신고하거나 "갑"이 요구하는 금액의 신용보증보험에 가입하여야 한다.</p>
-      <p style="margin-bottom:6px;">- "갑"은 "을"에게 신용보증보험을 요구할 수 있으며, "을"은 회사의 요구 시 1주일 이내에 제출하여야 한다.</p>
-      <p style="font-weight:700;margin:12px 0 4px;">제14조 【안전 및 보건에 관한 사항】</p>
-      <p style="margin-bottom:4px;">1. "갑"은 근로자의 안전 및 보건에 관하여 관계 법령이 정하는 바에 따라 필요한 조치를 강구한다.</p>
-      <p style="margin-bottom:4px;">2. "을"은 신규 입사 시 즉시 채용신체검사서를 제출하여야 하며, 정기 건강진단을 관련법령에 의거 실시하고 "을"은 이에 반드시 응해야 한다.</p>
-      <p style="margin-bottom:6px;">3. "을"은 제반 법규 및 "갑"이 정한 제반 안전 교육사항 및 안전수칙을 준수하여야 한다.</p>
-      <p style="font-weight:700;margin:12px 0 4px;">제15조 【취업 전 고지】</p>
-      <p style="margin-bottom:6px;">"을"은 본 근로계약의 내용을 취업 전 충분히 숙지하고 이를 성실히 이행한다.</p>
-      <p style="font-weight:700;margin:12px 0 4px;">제16조 【파견근로계약 및 동의】</p>
-      <p style="margin-bottom:6px;">"을"은 본 근로계약의 내용에 이의를 제기하지 아니하며 "을"의 근로조건은 "갑"의 취업규칙 및 근로자계약 범위 내에서 결정되는 것에 동의한다.</p>
-      <p style="font-weight:700;margin:12px 0 4px;">제17조 【계약의 해지】</p>
-      <p style="margin-bottom:4px;">다음 각 호에 해당하는 경우 갑과 을의 근로계약은 해지된다.</p>
-      <p style="margin-bottom:4px;">1. "갑"과 "을"의 상호 합의 하에 근무일을 지정하여 해당 날짜까지 근무 후 계약 종료</p>
-      <p style="margin-bottom:4px;">2. "을"의 계약종료 의사를 "갑"이 인지한 시점으로부터 당기 후의 1기가 지난 뒤 해지의 효력이 발생</p>
-      <p style="margin-bottom:6px;">3. 제11조 귀책사유 발생 시 "갑"은 일방적으로 "을"과의 근로계약을 해지할 수 있다.</p>
-      <p style="font-weight:700;margin:12px 0 4px;">제18조 【지급품의 반납】</p>
-      <p style="margin-bottom:6px;">퇴직 시에는 "을"은 "갑"으로부터 지급받은 장비, 피복, 기타 이에 준하는 지급품은 필히 반납하여야 하며 반납치 않을 시에는 급여에서 공제한다.</p>
-      <p style="font-weight:700;margin:12px 0 4px;">제19조 【근로기준법의 적용】</p>
-      <p style="margin-bottom:6px;">본 계약에 명시되지 않은 사항은 회사의 취업규칙 및 근로기준법의 해석에 준하여 따른다.</p>
-      <p style="font-weight:700;margin:12px 0 4px;">제20조 【비밀유지】</p>
-      <p style="margin-bottom:4px;">1. "을"은 자신의 계약내용을 관계인에게 누설하지 않는다.</p>
-      <p style="margin-bottom:4px;">2. "을"은 근무지에서 발생하는 인사문제를 관리자에게 보고하여야 하며 조치 받을 수 있도록 한다.</p>
-      <p style="margin-bottom:6px;">3. "을"은 "갑"에서 발생하는 문제를 외부에 누설하지 않는다.</p>
-      <p style="font-weight:700;margin:12px 0 4px;">제21조 【계약의 유지】</p>
-      <p style="margin-bottom:12px;">"갑"과 "을"은 제2조의 계약기간을 원칙으로 하며 "을"은 이에 동의한다. 위 계약내용이 당사자의 자유로운 의사에 의하여 원만히 체결되었음을 상호 확인하고 각 1통씩 보관한다.</p>
-      <p style="font-weight:600;margin:20px 0 16px;">계약일자 : ${fmtDp(f.contractDate)}</p>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:16px;">
-        <div style="border-top:1px solid #333;padding-top:12px;"><p style="font-weight:700;margin-bottom:6px;">(갑)</p><p>사업체명 : 제이에이치솔루션</p><p>대&nbsp;&nbsp;&nbsp;&nbsp;표 : 김 종 화 (인)</p><p>사업자번호 : 383-09-02847</p></div>
-        <div style="border-top:1px solid #333;padding-top:12px;"><p style="font-weight:700;margin-bottom:6px;">(을)</p><p>주&nbsp;&nbsp;소 : ${ul(f.address,140)}</p><p>이&nbsp;&nbsp;름 : ${ul(f.name,80)}</p><p>주민등록번호 : ${ul(f.jumin,110)}</p><div style="margin-top:8px;display:flex;align-items:center;gap:8px;"><span>(인)</span>${signImg}</div></div>
-      </div>
-    </div>
-    </body></html>`);
-  win.document.close();
-};
-
-window.renderLaborList2 = async () => {
-  const el=document.getElementById('tab-labor');
-  el.innerHTML=wrap2(`
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-      ${backBtn2('renderLaborMain()')}
-      <span style="font-size:12px;color:${C2.sub};font-weight:600;">근로계약서 조회</span>
-    </div>
-    <div id="labor-list2-loading" style="text-align:center;padding:32px;color:${C2.mute};">⏳ 불러오는 중...</div>
-    <div id="labor-list2-wrap"></div>
-  `);
-  const workers=await getWorkersList();
-  document.getElementById('labor-list2-loading').style.display='none';
-  if(!workers.length){document.getElementById('labor-list2-wrap').innerHTML='<div style="text-align:center;padding:40px;color:'+C2.mute+';">등록된 근로자가 없습니다.</div>';return;}
-  document.getElementById('labor-list2-wrap').innerHTML=`
-    <div style="background:#fff;border-radius:12px;border:1px solid #DDE4EF;overflow:hidden;box-shadow:${C2.shadow};">
-      <div style="display:grid;grid-template-columns:0.6fr 1fr 0.7fr 0.6fr;background:#E8F0FB;padding:9px 12px;gap:6px;">
-        ${['사원번호','이름','소속','직급'].map(h=>`<div style="font-size:10px;font-weight:700;color:${C2.blue};">${h}</div>`).join('')}
-      </div>
-      ${workers.map((w,i)=>`
-        <button onclick="laborViewWorker2('${w.id}','${w.name}')"
-          style="width:100%;display:grid;grid-template-columns:0.6fr 1fr 0.7fr 0.6fr;padding:11px 12px;gap:6px;
-            background:${i%2===0?'#fff':'#F8FAFD'};border:none;border-bottom:1px solid #F0F4FA;cursor:pointer;text-align:left;align-items:center;">
-          <div style="font-size:12px;font-weight:700;color:${C2.blue};">${w.empNo||'-'}</div>
-          <div style="font-size:13px;font-weight:600;color:${C2.text};">${w.name}</div>
-          <div style="font-size:11px;color:${C2.sub};">${w.dept||'-'}</div>
-          <div style="font-size:11px;color:${C2.sub};">${w.rank||'-'}</div>
-        </button>`).join('')}
-    </div>`;
-};
-
-window.laborViewWorker2 = async (wid, wname) => {
-  const el=document.getElementById('tab-labor');
-  el.innerHTML=wrap2(`
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-      ${backBtn2('renderLaborList2()','목록')}
-      <span style="font-size:13px;font-weight:700;color:${C2.text};">${wname} · 근로계약서</span>
-    </div>
-    <div id="labor-contracts-loading" style="text-align:center;padding:32px;color:${C2.mute};">⏳ 불러오는 중...</div>
-    <div id="labor-contracts-wrap"></div>
-  `);
-  try {
-    const { getDocs, collection, doc, deleteDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-    const snap=await getDocs(collection(window._db,`labor_contracts/${wid}/contracts`));
-    const docs=[]; snap.forEach(d=>docs.push({id:d.id,...d.data()}));
-    docs.sort((a,b)=>(b.contractDate||b.id).localeCompare(a.contractDate||a.id));
-    document.getElementById('labor-contracts-loading').style.display='none';
-    if(!docs.length){document.getElementById('labor-contracts-wrap').innerHTML='<div style="text-align:center;padding:32px;color:'+C2.mute+';">근로계약서가 없습니다.</div>';return;}
-    document.getElementById('labor-contracts-wrap').innerHTML=docs.map((d,i)=>`
-      <div style="background:#fff;border-radius:12px;border:1px solid #DDE4EF;padding:14px;margin-bottom:8px;box-shadow:${C2.shadow};">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <span style="font-size:13px;font-weight:700;color:${C2.blue};">계약일: ${fmtD2(d.contractDate)}</span>
-          <span style="font-size:10px;background:${C2.greenLt};color:${C2.green};padding:2px 8px;border-radius:8px;font-weight:700;">✅ 저장됨</span>
-        </div>
-        <div style="font-size:12px;color:${C2.sub};margin-bottom:4px;">계약기간: ${fmtD2(d.startDate)} ~ ${fmtD2(d.endDate)}</div>
-        <div style="font-size:12px;color:${C2.sub};margin-bottom:10px;">연봉: ${d.salary?'₩'+Number(d.salary).toLocaleString():'-'}</div>
-        <div style="display:flex;gap:8px;">
-          <button onclick="laborPreviewSaved2(${JSON.stringify(d).replace(/"/g,'&quot;')})"
-            style="flex:1;padding:8px;background:#E8F0FB;border:1px solid #DDE4EF;border-radius:8px;font-size:12px;font-weight:600;color:${C2.blue};cursor:pointer;">📄 PDF 출력</button>
-          <button onclick="laborDeleteContract2('${wid}','${d.id}','${wname}')"
-            style="padding:8px 12px;background:${C2.redLt};border:1px solid #fca5a5;border-radius:8px;font-size:12px;font-weight:600;color:${C2.red};cursor:pointer;">🗑 삭제</button>
-        </div>
-      </div>`).join('');
-  } catch(e){document.getElementById('labor-contracts-loading').innerHTML=`<div style="color:${C2.red};">오류: ${e.message}</div>`;}
-};
-
-window.laborDeleteContract2 = async (wid, cid, wname) => {
-  if(!confirm(`${wname}님의 계약서(${cid})를 삭제하시겠습니까?`))return;
-  const { doc, deleteDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-  await deleteDoc(doc(window._db,`labor_contracts/${wid}/contracts`,cid));
-  laborViewWorker2(wid, wname);
-};
-
-window.laborPreviewSaved2 = (d) => {
-  laborForm2 = {...d};
-  laborPreview2();
-};
-
-// ════════════════════════════════
-// 📋 연봉계약서 (재구성)
-// ════════════════════════════════
-let annualView2='main';
-let annualForm2={workerId:'',name:'',jumin:'',address:'',dept:'',rank:'',empType:'field',startDate:'2026-06-02',endDate:'2027-05-31',contractDate:'',hourly:'',salary:'',signData:null};
-let annualSignCanvas2=null, annualSignDrawing2=false;
-
-window.renderAnnualMain = () => {
-  const el=document.getElementById('tab-annual');
-  if(!el)return;
-  annualView2='main';
-  el.innerHTML=wrap2(`
-    <div style="font-size:13px;color:${C2.sub};margin-bottom:16px;font-weight:600;">작업을 선택해 주세요</div>
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      ${selectMain('✏️','등록','renderAnnualRegister()','근로자 명부에서 선택하여 연봉계약서 작성')}
-      ${selectMain('📂','조회','renderAnnualList2()','저장된 연봉계약서 조회 및 관리')}
-    </div>`);
-};
-
-window.renderAnnualRegister = async () => {
-  const el = document.getElementById('tab-annual');
-  annualForm2 = { workerId:'', name:'', jumin:'', address:'', dept:'', rank:'',
-    empType:'field', startDate:'2026-06-02', endDate:'2027-05-31',
-    contractDate:'', hourly:'', salary:'', signData:null };
-  const workers = await getWorkersList();
-  window._annualWorkers2 = workers;
-  window.annualRefreshForm2 = () => renderAnnualForm(el, workers);
-  renderAnnualForm(el, workers);
-};
-
-function renderAnnualForm(el, workers) {
-  const sal = calcAnnualSalary(Number(annualForm2.hourly||0), annualForm2.empType||'field');
-  if (annualForm2.hourly) annualForm2.salary = sal.annual;
-
-  const isOff = annualForm2.empType === 'office';
-  const salPreview = (() => {
-    if (!annualForm2.hourly) return '';
-    const rows = isOff
-      ? [['기본근로수당',sal.basic,false],['고정연장수당',sal.fixedOt,false],['고정야간수당',0,true],
-         ['주휴수당',sal.weekly,false],['월 지급계',sal.total,false],['계약연봉 (월×12)',sal.annual,false]]
-      : [['기본근로수당',sal.basic,false],['고정연장수당',0,true],['고정야간수당',sal.fixedNight,false],
-         ['주휴수당',sal.weekly,false],['월 지급계',sal.total,false],['계약연봉 (월×12)',sal.annual,false]];
-    return '<div style="margin-top:8px;border-radius:8px;overflow:hidden;border:1px solid #DDE4EF;">'
-      +'<div style="background:#1D5BA6;padding:6px 12px;font-size:11px;font-weight:700;color:#fff;">'+(isOff?'💼 사무직':'🔧 현장직')+' 급여 구성</div>'
-      +rows.map(function(r){var l=r[0],v=r[1],z=r[2];var isTot=l.includes('지급계')||l.includes('연봉');
-        return '<div style="display:flex;justify-content:space-between;padding:6px 12px;border-bottom:1px solid #F0F4FA;font-size:11px;background:'+(isTot?'#E8F0FB':'#fff')+';">'
-          +'<span style="color:#5C6F8A;">'+l+'</span>'
-          +'<span style="color:'+(l.includes('연봉')?'#1D5BA6':isTot?'#1D5BA6':z?'#9AAABF':'#1A2540')+';font-weight:'+(isTot?700:400)+';margin-left:8px;">'+(z?'—':'₩'+Math.round(v).toLocaleString())+'</span></div>';
-      }).join('')+'</div>';
-  })();
-
-  el.innerHTML = wrap2(`
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
-      ${backBtn2('renderAnnualMain()')}
-      <span style="font-size:13px;font-weight:700;color:${C2.text};">연봉계약서 작성</span>
-    </div>
-    ${card2('👤 근로자 선택', `
-      <select onchange="annualWorkerSelect2(this.value)"
-        style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:10px 12px;font-size:13px;font-weight:600;color:${C2.blue};background:#E8F0FB;cursor:pointer;">
-        <option value="">근로자를 선택하세요</option>
-        ${(workers||[]).map(w=>`<option value="${w.id}" ${annualForm2.workerId===w.id?'selected':''}>${w.empNo||'-'} · ${w.name} (${w.rank||''})</option>`).join('')}
-      </select>
-      ${annualForm2.name?`<div style="margin-top:10px;background:#F8FAFD;border-radius:8px;overflow:hidden;">
-        ${[['이름',annualForm2.name],['소속',annualForm2.dept||'-'],['직급',annualForm2.rank||'-'],
-           ['구분',annualForm2.empType==='office'?'💼 사무직':'🔧 현장직'],
-           ['주소',annualForm2.address||'-']].map(([l,v])=>`
-          <div style="display:flex;padding:7px 12px;border-bottom:1px solid #F0F4FA;font-size:12px;">
-            <span style="color:${C2.sub};min-width:60px;font-weight:600;">${l}</span>
-            <span style="color:${C2.text};">${v}</span>
-          </div>`).join('')}
-      </div>`:''}
-    `)}
-    ${annualForm2.name?`
-    ${card2('📅 계약 기간', `
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
-        ${field2('시작일',`<input type="date" value="${annualForm2.startDate}"
-          onchange="annualForm2.startDate=this.value;const s=new Date(this.value);s.setFullYear(s.getFullYear()+1);s.setDate(s.getDate()-1);annualForm2.endDate=s.toISOString().slice(0,10);window.annualRefreshForm2&&window.annualRefreshForm2();"
-          style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:9px 8px;font-size:12px;box-sizing:border-box;">`)}
-        ${field2('종료일 (자동 1년)',`<input type="date" value="${annualForm2.endDate}" readonly
-          style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:9px 8px;font-size:12px;box-sizing:border-box;background:#F4F7FB;color:#5C6F8A;">`)}
-      </div>
-      ${field2('계약일자',`<input type="date" value="${annualForm2.contractDate}" onchange="annualForm2.contractDate=this.value" ${inp2Style}>`)}
-    `)}
-    ${card2('💰 시급 입력', `
-      ${field2('시급 (원)',`<input type="number" value="${annualForm2.hourly}" placeholder="시급 입력 (숫자만)"
-          oninput="annualForm2.hourly=this.value;annualUpdateSalaryPreview();" ${inp2Style}>`)}
-      <div id="annual-sal-preview2">${salPreview}</div>
-      ${annualForm2.salary?'<div style="font-size:12px;color:#1D5BA6;margin-top:6px;font-weight:700;">→ 계약연봉: ₩'+Number(annualForm2.salary).toLocaleString()+'원</div>':''}
-    `)}
-    ${card2('✍️ 서명', `
-      <div style="text-align:center;">
-        ${annualForm2.signData
-          ?`<img src="${annualForm2.signData}" style="width:160px;height:60px;object-fit:contain;border:1px solid #DDE4EF;border-radius:8px;"/>
-             <br/><button onclick="annualForm2.signData=null;window.annualRefreshForm2&&window.annualRefreshForm2();" style="font-size:11px;color:${C2.mute};background:none;border:none;cursor:pointer;text-decoration:underline;">지우기</button>`
-          :`<button onclick="annualOpenSign2();" style="padding:10px 24px;background:#E8F0FB;border:2px dashed #1D5BA6;border-radius:10px;color:#1D5BA6;font-size:13px;font-weight:600;cursor:pointer;">✍️ 서명하기</button>`}
-      </div>
-    `)}
-    <div style="display:flex;gap:8px;">
-      <button onclick="annualPreview2();" style="flex:1;padding:13px;background:${C2.sub};border:none;border-radius:12px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">📄 미리보기</button>
-      <button onclick="annualSave2();" style="flex:1;padding:13px;background:${C2.green};border:none;border-radius:12px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">✅ 확정 저장</button>
-    </div>
-    <div id="annual-sign2-popup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
-      <div style="background:#fff;border-radius:16px;padding:24px;width:320px;text-align:center;">
-        <div style="font-size:14px;font-weight:700;color:${C2.text};margin-bottom:16px;">✍️ 서명</div>
-        <div style="position:relative;border:1px solid #DDE4EF;border-radius:8px;overflow:hidden;background:#FAFCFF;margin-bottom:12px;">
-          <canvas id="annual-sign2-canvas" width="272" height="100" style="display:block;cursor:crosshair;touch-action:none;"></canvas>
-          <div id="annual-sign2-hint" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;"><span style="font-size:12px;color:${C2.mute};">손가락으로 서명하세요</span></div>
-        </div>
-        <div style="display:flex;gap:8px;">
-          <button onclick="annualClearSign2()" style="flex:1;padding:10px;background:#F8FAFD;border:1px solid #DDE4EF;border-radius:8px;font-size:13px;cursor:pointer;color:${C2.sub};">지우기</button>
-          <button onclick="annualCancelSign2()" style="flex:1;padding:10px;background:#F8FAFD;border:1px solid #DDE4EF;border-radius:8px;font-size:13px;cursor:pointer;color:${C2.sub};">취소</button>
-          <button onclick="annualSaveSign2()" style="flex:1;padding:10px;background:${C2.blue};border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;color:#fff;">확인</button>
-        </div>
-      </div>
-    </div>`:''}`);
-  setTimeout(()=>{const p=document.getElementById('annual-sign2-popup');if(p)p.style.display='none';},50);
-}
-
-window.annualWorkerSelect2 = async (wid) => {
-  const w = (window._annualWorkers2||[]).find(x=>x.id===wid);
-  if (!w) return;
-  annualForm2.workerId = wid;
-  annualForm2.name     = w.name    || '';
-  annualForm2.jumin    = w.jumin   || '';
-  annualForm2.address  = w.address || '';
-  annualForm2.dept     = w.dept    || '';
-  annualForm2.rank     = w.rank    || '';
-  annualForm2.empType  = w.empType || 'field';
-  annualForm2.hourly   = '';
-  annualForm2.salary   = '';
-
-  // 근로계약서에서 최신 시급 자동 불러오기
-  if (window._db) {
-    try {
-      const { getDocs, collection } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-      const snap = await getDocs(collection(window._db, `labor_contracts/${wid}/contracts`));
-      let latestDate = '';
-      snap.forEach(d => {
-        const dd = d.data();
-        if ((dd.contractDate||'') > latestDate) {
-          latestDate = dd.contractDate || '';
-          if (dd.hourly)  annualForm2.hourly  = dd.hourly;
-          if (dd.salary)  annualForm2.salary  = dd.salary;
-        }
-      });
-    } catch(e) {}
-  }
-  if (window.annualRefreshForm2) window.annualRefreshForm2();
-};
-
-window.annualUpdateSalaryPreview = () => {
-  const sal = calcAnnualSalary(Number(annualForm2.hourly||0), annualForm2.empType||'field');
-  annualForm2.salary = sal.annual;
-  const el = document.getElementById('annual-sal-preview2');
-  if (!el) return;
-  if (!annualForm2.hourly) { el.innerHTML=''; return; }
-  const isOff = annualForm2.empType === 'office';
-  const rows = isOff
-    ? [['기본근로수당',sal.basic,false],['고정연장수당',sal.fixedOt,false],['고정야간수당',0,true],
-       ['주휴수당',sal.weekly,false],['월 지급계',sal.total,false],['계약연봉 (월×12)',sal.annual,false]]
-    : [['기본근로수당',sal.basic,false],['고정연장수당',0,true],['고정야간수당',sal.fixedNight,false],
-       ['주휴수당',sal.weekly,false],['월 지급계',sal.total,false],['계약연봉 (월×12)',sal.annual,false]];
-  el.innerHTML = '<div style="margin-top:8px;border-radius:8px;overflow:hidden;border:1px solid #DDE4EF;">'
-    +'<div style="background:#1D5BA6;padding:6px 12px;font-size:11px;font-weight:700;color:#fff;">'+(isOff?'💼 사무직':'🔧 현장직')+' 급여 구성</div>'
-    +rows.map(function(r){var l=r[0],v=r[1],z=r[2];var isTot=l.includes('지급계')||l.includes('연봉');
-      return '<div style="display:flex;justify-content:space-between;padding:6px 12px;border-bottom:1px solid #F0F4FA;font-size:11px;background:'+(isTot?'#E8F0FB':'#fff')+';">'
-        +'<span style="color:#5C6F8A;">'+l+'</span>'
-        +'<span style="color:'+(l.includes('연봉')?'#1D5BA6':isTot?'#1D5BA6':z?'#9AAABF':'#1A2540')+';font-weight:'+(isTot?700:400)+';margin-left:8px;">'+(z?'—':'₩'+Math.round(v).toLocaleString())+'</span></div>';
-    }).join('') + '</div>';
-  // 계약연봉 표시 업데이트
-  const salaryEl = el.nextElementSibling;
-  if (salaryEl && salaryEl.tagName === 'DIV') {
-    salaryEl.textContent = annualForm2.salary ? '→ 계약연봉: ₩'+Number(annualForm2.salary).toLocaleString()+'원' : '';
-  }
-};
-
-
-window.annualOpenSign2=()=>{const p=document.getElementById('annual-sign2-popup');if(!p)return;p.style.display='flex';
-  setTimeout(()=>{annualSignCanvas2=document.getElementById('annual-sign2-canvas');if(!annualSignCanvas2)return;
-    const ctx=annualSignCanvas2.getContext('2d');ctx.clearRect(0,0,272,100);
-    const hint=document.getElementById('annual-sign2-hint');
-    const gp=e=>{const r=annualSignCanvas2.getBoundingClientRect();const t=e.touches?.[0]||e;return{x:(t.clientX-r.left)*(annualSignCanvas2.width/r.width),y:(t.clientY-r.top)*(annualSignCanvas2.height/r.height)};};
-    annualSignCanvas2.onmousedown=e=>{annualSignDrawing2=true;const p=gp(e);ctx.beginPath();ctx.moveTo(p.x,p.y);};
-    annualSignCanvas2.onmousemove=e=>{if(!annualSignDrawing2)return;ctx.lineWidth=2.5;ctx.lineCap='round';ctx.strokeStyle='#1A2540';const p=gp(e);ctx.lineTo(p.x,p.y);ctx.stroke();if(hint)hint.style.display='none';};
-    annualSignCanvas2.onmouseup=()=>annualSignDrawing2=false; annualSignCanvas2.onmouseleave=()=>annualSignDrawing2=false;
-    annualSignCanvas2.addEventListener('touchstart',e=>{e.preventDefault();annualSignDrawing2=true;const p=gp(e);ctx.beginPath();ctx.moveTo(p.x,p.y);},{passive:false});
-    annualSignCanvas2.addEventListener('touchmove',e=>{e.preventDefault();if(!annualSignDrawing2)return;ctx.lineWidth=2.5;ctx.lineCap='round';ctx.strokeStyle='#1A2540';const p=gp(e);ctx.lineTo(p.x,p.y);ctx.stroke();if(hint)hint.style.display='none';},{passive:false});
-    annualSignCanvas2.addEventListener('touchend',e=>{e.preventDefault();annualSignDrawing2=false;},{passive:false});
-  },100);};
-window.annualClearSign2=()=>{if(annualSignCanvas2){annualSignCanvas2.getContext('2d').clearRect(0,0,272,100);const h=document.getElementById('annual-sign2-hint');if(h)h.style.display='flex';}};
-window.annualCancelSign2=()=>{const p=document.getElementById('annual-sign2-popup');if(p)p.style.display='none';};
-window.annualSaveSign2=()=>{if(annualSignCanvas2)annualForm2.signData=annualSignCanvas2.toDataURL();const p=document.getElementById('annual-sign2-popup');if(p)p.style.display='none';if(window.annualRefreshForm2)window.annualRefreshForm2();};
-
-window.annualSave2=async()=>{
-  if(!annualForm2.workerId||!annualForm2.contractDate){alert('근로자와 계약일자는 필수입니다.');return;}
-  if(!window._db){alert('Firebase 연결 필요');return;}
-  if(!confirm(`${annualForm2.name}님의 연봉계약서를 저장하시겠습니까?`))return;
-  try{
-    const { doc, setDoc }=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-    const cid=annualForm2.contractDate.replace(/-/g,'');
-    annualForm2.salary = calcAnnualSalary(Number(annualForm2.hourly||0), annualForm2.empType||'field').annual;
-    await setDoc(doc(window._db,`annual_contracts/${annualForm2.workerId}/contracts`,cid),{...annualForm2,savedAt:new Date().toISOString(),savedBy:'admin'});
-    alert('✅ 연봉계약서 저장 완료!'); renderAnnualMain();
-  }catch(e){alert('오류: '+e.message);}
-};
-
-window.annualPreview2=()=>{
-  const f=annualForm2; const sal=calcAnnualSalary(Number(f.hourly||0), f.empType||'field');
-  const fmtDp=s=>{if(!s)return'____년 __월 __일';const d=new Date(s);return`${d.getFullYear()}년 ${String(d.getMonth()+1).padStart(2,'0')}월 ${String(d.getDate()).padStart(2,'0')}일`;};
-  const ul=(v,w)=>`<span style="display:inline-block;min-width:${w||80}px;border-bottom:1px solid #333;text-align:center;padding:0 2px;">${v||''}</span>`;
-  const tr=(l,a,b)=>`<tr><td style="border:1px solid #333;padding:5px 8px;font-size:10pt;">${l}</td><td style="border:1px solid #333;padding:5px 8px;text-align:right;font-size:10pt;">${a}</td><td style="border:1px solid #333;padding:5px 8px;font-size:9pt;color:#555;">${b}</td></tr>`;
-  const w=v=>v?`₩${Number(v).toLocaleString()}`:'';
-  const signImg=f.signData?`<img src="${f.signData}" style="width:100px;height:40px;object-fit:contain;opacity:0.9;vertical-align:middle;"/>`:`<span style="display:inline-block;width:100px;height:40px;border:1px dashed #ccc;vertical-align:middle;"></span>`;
-  const win=window.open('','_blank');
-  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>연봉계약서 - ${f.name}</title>
-    <style>body{margin:0;font-family:'Malgun Gothic',Arial,sans-serif;background:#888;display:flex;flex-direction:column;align-items:center;padding:20px;}.a4{width:210mm;min-height:297mm;background:#fff;padding:20mm 22mm;box-shadow:0 4px 24px rgba(0,0,0,.2);font-size:10.5pt;line-height:1.9;color:#1A2540;}@media print{body{background:#fff;padding:0;}.toolbar{display:none;}.a4{box-shadow:none;padding:15mm 20mm;width:100%;}}</style>
-    </head><body>
-    <div class="toolbar" style="margin-bottom:12px;display:flex;gap:8px;">
-      <button onclick="window.close()" style="padding:8px 16px;background:#fff;border:1px solid #DDE4EF;border-radius:8px;cursor:pointer;">← 닫기</button>
-      <button onclick="window.print()" style="padding:8px 16px;background:#1D5BA6;border:none;border-radius:8px;color:#fff;font-weight:700;cursor:pointer;">🖨 인쇄/PDF</button>
-    </div>
-    <div class="a4">
-      <div style="text-align:center;margin-bottom:28px;"><div style="font-size:20pt;font-weight:800;letter-spacing:6px;">연 봉 계 약 서</div><div style="width:60px;height:2px;background:#333;margin:8px auto 0;"></div></div>
-      <p style="margin-bottom:12px;">제이에이치솔루션 (이하"갑"이라 한다.)과 근로자 ${ul(f.name,100)} (이하 "을"이라 한다.)는 다음과 같은 조건으로 연봉계약을 체결하고, 이를 성실하게 준수할 것을 확인한다.</p>
-      <p style="font-weight:700;margin:14px 0 5px;">제1조 (연봉계약기간)</p>
-      <p style="margin-bottom:4px;">① 직원의 연봉계약기간은 ${fmtDp(f.startDate)} 부터 ${fmtDp(f.endDate)}까지(12개월)로 한다.</p>
-      <p style="margin-bottom:4px;">② 연봉 계약 기간 중 회사규정에 따른 연봉의 증감 사유가 발생한 때에는 제1항의 계약 기간 중이라도 연봉을 조정할 수 있다.</p>
-      <p style="margin-bottom:10px;">③ 근로 계약 해지 사유가 발생하여 근로계약이 종료되면 본 계약도 해지된 것으로 간주한다.</p>
-      <p style="font-weight:700;margin:14px 0 5px;">제2조 (연봉의 구성)</p>
-      <p style="margin-bottom:6px;">① 계약 연봉은 ${f.salary?`금 ${Number(f.salary).toLocaleString()}원`:'금 ____________원'}으로 한다.</p>
-      <p style="margin-bottom:8px;">② 월급여 임금 구성:</p>
-      <table style="width:100%;border-collapse:collapse;margin-bottom:6px;">
-        <thead><tr style="background:#E8F0FB;"><th style="border:1px solid #333;padding:6px 8px;text-align:left;font-size:10pt;">항목</th><th style="border:1px solid #333;padding:6px 8px;text-align:right;font-size:10pt;">금액</th><th style="border:1px solid #333;padding:6px 8px;text-align:left;font-size:10pt;">산출근거</th></tr></thead>
-        <tbody>${f.empType==='office'
-          ? tr('기본근로수당',w(sal.basic),'시급×8×5×4.345')+tr('고정연장수당',w(sal.fixedOt),'시급×12×4.345')+tr('고정야간수당','—','—')+tr('주휴수당',w(sal.weekly),'시급×8×4.345')
-          : tr('기본근로수당',w(sal.basic),'시급×8×5×4.345')+tr('고정연장수당','—','—')+tr('고정야간수당',w(sal.fixedNight),'시급×0.5×8×5×4.345')+tr('주휴수당',w(sal.weekly),'시급×8×4.345')
-        }${tr('상여금','','회사 내규에 따름')}${tr('특별성과급','','회사 내규에 따름')}${tr('특근수당','','주말, 공휴일 출근 시 지급')}
-        <tr style="background:#E8F0FB;"><td style="border:1px solid #333;padding:6px 8px;font-weight:700;font-size:10pt;">합계</td><td style="border:1px solid #333;padding:6px 8px;text-align:right;font-weight:700;font-size:10pt;">${w(sal.total)}</td><td style="border:1px solid #333;padding:6px 8px;"></td></tr></tbody>
-      </table>
-      <p style="font-size:9pt;color:#555;margin-bottom:10px;">※ 위 임금구성은 소정근로시간(주52시간)을 기준으로 작성됨</p>
-      <p style="font-weight:700;margin:14px 0 5px;">제3조 (지급시기 및 방법)</p>
-      <p style="margin-bottom:4px;">① 연봉을 12개월로 균등 분할해 익월 말일에 지급한다.</p>
-      <p style="margin-bottom:4px;">② 지급일이 휴일인 경우 다음 은행 영업일에 지급한다.</p>
-      <p style="margin-bottom:10px;">③ 임금은 제세공과금 원천징수 후 급여 계좌로 입금한다.</p>
-      <p style="font-weight:700;margin:14px 0 5px;">제4조 (기밀유지)</p>
-      <p style="margin-bottom:10px;">직원은 본 계약 내용 및 타 직원 연봉에 관한 사항에 대하여 기밀을 유지하여야 한다.</p>
-      <p style="font-weight:700;margin:14px 0 5px;">제5조 ~ 제7조</p>
-      <p style="margin-bottom:20px;">효력정지, 기타사항, 근로계약서 교부에 관한 사항은 당사 취업규칙 및 근로기준법에 준한다.</p>
-      <p style="font-weight:600;margin-bottom:20px;">계약일자 : ${fmtDp(f.contractDate)}</p>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-top:16px;">
-        <div style="border-top:1px solid #333;padding-top:14px;"><p style="font-weight:700;margin-bottom:8px;">(갑)</p><p>사업체명 : 제이에이치솔루션</p><p>대&nbsp;&nbsp;&nbsp;&nbsp;표 : 김 종 화 (인)</p><p>사업자번호 : 383-09-02847</p></div>
-        <div style="border-top:1px solid #333;padding-top:14px;"><p style="font-weight:700;margin-bottom:8px;">(을)</p><p>주&nbsp;&nbsp;소 : ${ul(f.address,150)}</p><p>이&nbsp;&nbsp;름 : ${ul(f.name,80)}</p><p>주민등록번호 : ${ul(f.jumin,110)}</p><div style="margin-top:10px;display:flex;align-items:center;gap:8px;"><span>(인)</span>${signImg}</div></div>
-      </div>
-    </div>
-    </body></html>`);
-  win.document.close();
-};
-
-window.renderAnnualList2=async()=>{
-  const el=document.getElementById('tab-annual');
-  el.innerHTML=wrap2(`
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-      ${backBtn2('renderAnnualMain()','뒤로')}
-      <span style="font-size:12px;color:${C2.sub};font-weight:600;">연봉계약서 조회</span>
-    </div>
-    <div id="annual-list2-loading" style="text-align:center;padding:32px;color:${C2.mute};">⏳ 불러오는 중...</div>
-    <div id="annual-list2-wrap"></div>
-  `);
-  const workers=await getWorkersList();
-  document.getElementById('annual-list2-loading').style.display='none';
-  if(!workers.length){document.getElementById('annual-list2-wrap').innerHTML='<div style="text-align:center;padding:40px;color:'+C2.mute+';">등록된 근로자가 없습니다.</div>';return;}
-  document.getElementById('annual-list2-wrap').innerHTML=`
-    <div style="background:#fff;border-radius:12px;border:1px solid #DDE4EF;overflow:hidden;box-shadow:${C2.shadow};">
-      <div style="display:grid;grid-template-columns:0.6fr 1fr 0.7fr 0.6fr;background:#E8F0FB;padding:9px 12px;gap:6px;">
-        ${['사원번호','이름','소속','직급'].map(h=>`<div style="font-size:10px;font-weight:700;color:${C2.blue};">${h}</div>`).join('')}
-      </div>
-      ${workers.map((w,i)=>`
-        <button onclick="annualViewWorker2('${w.id}','${w.name}')"
-          style="width:100%;display:grid;grid-template-columns:0.6fr 1fr 0.7fr 0.6fr;padding:11px 12px;gap:6px;
-            background:${i%2===0?'#fff':'#F8FAFD'};border:none;border-bottom:1px solid #F0F4FA;cursor:pointer;text-align:left;align-items:center;">
-          <div style="font-size:12px;font-weight:700;color:${C2.blue};">${w.empNo||'-'}</div>
-          <div style="font-size:13px;font-weight:600;color:${C2.text};">${w.name}</div>
-          <div style="font-size:11px;color:${C2.sub};">${w.dept||'-'}</div>
-          <div style="font-size:11px;color:${C2.sub};">${w.rank||'-'}</div>
-        </button>`).join('')}
-    </div>`;
-};
-
-window.annualViewWorker2=async(wid,wname)=>{
-  const el=document.getElementById('tab-annual');
-  el.innerHTML=wrap2(`
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-      ${backBtn2('renderAnnualList2()','목록')}
-      <span style="font-size:13px;font-weight:700;color:${C2.text};">${wname} · 연봉계약서</span>
-    </div>
-    <div id="annual-contracts-loading" style="text-align:center;padding:32px;color:${C2.mute};">⏳ 불러오는 중...</div>
-    <div id="annual-contracts-wrap"></div>
-  `);
-  try{
-    const { getDocs, collection, doc, deleteDoc }=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-    const snap=await getDocs(collection(window._db,`annual_contracts/${wid}/contracts`));
-    const docs=[]; snap.forEach(d=>docs.push({id:d.id,...d.data()}));
-    docs.sort((a,b)=>(b.contractDate||b.id).localeCompare(a.contractDate||a.id));
-    document.getElementById('annual-contracts-loading').style.display='none';
-    if(!docs.length){document.getElementById('annual-contracts-wrap').innerHTML='<div style="text-align:center;padding:32px;color:'+C2.mute+';">연봉계약서가 없습니다.</div>';return;}
-    document.getElementById('annual-contracts-wrap').innerHTML=docs.map(d=>`
-      <div style="background:#fff;border-radius:12px;border:1px solid #DDE4EF;padding:14px;margin-bottom:8px;box-shadow:${C2.shadow};">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <span style="font-size:13px;font-weight:700;color:${C2.blue};">계약일: ${fmtD2(d.contractDate)}</span>
-          <span style="font-size:10px;background:${C2.greenLt};color:${C2.green};padding:2px 8px;border-radius:8px;font-weight:700;">✅ 저장됨</span>
-        </div>
-        <div style="font-size:12px;color:${C2.sub};margin-bottom:4px;">계약기간: ${fmtD2(d.startDate)} ~ ${fmtD2(d.endDate)}</div>
-        <div style="font-size:12px;color:${C2.sub};margin-bottom:10px;">계약연봉: ${d.salary?'₩'+Number(d.salary).toLocaleString():'-'}</div>
-        <div style="display:flex;gap:8px;">
-          <button onclick="annualPreviewSaved2(${JSON.stringify(d).replace(/"/g,'&quot;')})"
-            style="flex:1;padding:8px;background:#E8F0FB;border:1px solid #DDE4EF;border-radius:8px;font-size:12px;font-weight:600;color:${C2.blue};cursor:pointer;">📄 PDF 출력</button>
-          <button onclick="annualDeleteContract2('${wid}','${d.id}','${wname}')"
-            style="padding:8px 12px;background:${C2.redLt};border:1px solid #fca5a5;border-radius:8px;font-size:12px;font-weight:600;color:${C2.red};cursor:pointer;">🗑 삭제</button>
-        </div>
-      </div>`).join('');
-  }catch(e){document.getElementById('annual-contracts-loading').innerHTML=`<div style="color:${C2.red};">오류: ${e.message}</div>`;}
-};
-
-window.annualDeleteContract2=async(wid,cid,wname)=>{
-  if(!confirm(`${wname}님의 연봉계약서(${cid})를 삭제하시겠습니까?`))return;
-  const { doc, deleteDoc }=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-  await deleteDoc(doc(window._db,`annual_contracts/${wid}/contracts`,cid));
-  annualViewWorker2(wid,wname);
-};
-
-window.annualPreviewSaved2=(d)=>{annualForm2={...d};annualPreview2();};
-
-
-
-
 
 
 </script>
