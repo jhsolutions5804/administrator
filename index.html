@@ -1428,14 +1428,29 @@ function renderAnnualSelect(el) {
 }
 
 // 연봉 계산
-function calcAnnualSalary(annual, empType) {
-  if (!annual) return { basic:0, fixedOt:0, fixedNight:0, total:0 };
-  const basic      = Math.round(annual / 12);
-  const fixedOt    = Math.round((basic / 209) * 10 * 4.345 * 1.5);
-  // 사무직은 고정야간수당 0, 현장직(또는 미지정)은 정상 계산
-  const fixedNight = (empType==='office') ? 0 : Math.round((basic / 209) * 40 * 4.345 * 0.5);
-  const total      = basic + fixedOt + fixedNight;
-  return { basic, fixedOt, fixedNight, total };
+function calcAnnualSalary(hourly, empType) {
+  if (!hourly) return { basic:0, fixedOt:0, fixedNight:0, weekly:0, total:0, annual:0 };
+  const h = Number(hourly);
+
+  if (empType === 'office') {
+    // 사무직
+    const basic      = Math.round(h * 8 * 5 * 4.345);   // 기본근로수당
+    const fixedOt    = Math.round(h * 12 * 4.345);       // 고정연장수당
+    const fixedNight = 0;                                  // 고정야간수당 = 0
+    const weekly     = Math.round(h * 8 * 4.345);         // 주휴수당
+    const total      = basic + fixedOt + fixedNight + weekly;
+    const annual     = total * 12;
+    return { basic, fixedOt, fixedNight, weekly, total, annual };
+  } else {
+    // 현장직 (야간직 포함)
+    const basic      = Math.round(h * 8 * 5 * 4.345);    // 기본근로수당
+    const fixedOt    = 0;                                  // 고정연장수당 = 0
+    const fixedNight = Math.round(h * 0.5 * 8 * 5 * 4.345); // 고정야간수당
+    const weekly     = Math.round(h * 8 * 4.345);          // 주휴수당
+    const total      = basic + fixedOt + fixedNight + weekly;
+    const annual     = total * 12;
+    return { basic, fixedOt, fixedNight, weekly, total, annual };
+  }
 }
 
 function annualFmtJumin(v) {
@@ -1650,7 +1665,7 @@ window.annualSelectWorker = (workerId) => {
   renderAnnualTab();
 };
 window.annualPreview = () => {
-  const sal = calcAnnualSalary(Number(annualForm.salary));
+  const sal = calcAnnualSalary(Number(annualForm.hourly||annualForm.salary||0), annualForm.empType||'field');
   const signImg = annualForm.signData
     ? `<img src="${annualForm.signData}" style="width:100px;height:40px;object-fit:contain;opacity:0.9;vertical-align:middle;"/>`
     : `<span style="display:inline-block;width:100px;height:40px;border:1px dashed #ccc;vertical-align:middle;"></span>`;
@@ -3263,7 +3278,7 @@ window.laborPreviewSaved2 = (d) => {
 // 📋 연봉계약서 (재구성)
 // ════════════════════════════════
 let annualView2='main';
-let annualForm2={workerId:'',name:'',jumin:'',address:'',dept:'',rank:'',startDate:'2026-06-02',endDate:'2027-05-31',contractDate:'',salary:'',signData:null};
+let annualForm2={workerId:'',name:'',jumin:'',address:'',dept:'',rank:'',empType:'field',startDate:'2026-06-02',endDate:'2027-05-31',contractDate:'',hourly:'',salary:'',signData:null};
 let annualSignCanvas2=null, annualSignDrawing2=false;
 
 window.renderAnnualMain = () => {
@@ -3320,10 +3335,11 @@ window.renderAnnualRegister = async () => {
         </div>
         ${field2('계약일자',`<input type="date" value="${annualForm2.contractDate}" onchange="annualForm2.contractDate=this.value" ${inp2Style}>`)}
       `)}
-      ${card2('💰 계약 연봉',`
-        ${field2('계약 연봉 (원)',`<input type="number" value="${annualForm2.salary}" placeholder="숫자만 입력" id="annual-salary-input2"
-            oninput="annualForm2.salary=this.value;annualUpdateSalaryPreview();" ${inp2Style}>
-          <div id="annual-sal-preview2">${salPreview}</div>`)}
+      ${card2('💰 시급 입력',`
+        ${field2('시급 (원)',`<input type="number" value="${annualForm2.hourly}" placeholder="시급 입력 (숫자만)"
+            oninput="annualForm2.hourly=this.value;annualUpdateSalaryPreview();" ${inp2Style}>
+          <div id="annual-sal-preview2">${salPreview}</div>
+          ${annualForm2.salary?'<div style="font-size:11px;color:#1D5BA6;margin-top:4px;font-weight:600;">→ 계약연봉: ₩'+Number(annualForm2.salary).toLocaleString()+'원 (자동 계산)</div>':''}`)}
       `)}
       ${card2('✍️ 서명',`
         <div style="text-align:center;">
@@ -3357,18 +3373,36 @@ window.renderAnnualRegister = async () => {
 
   window.annualRefreshForm2=renderAForm;
 window.annualUpdateSalaryPreview = () => {
-  const sal = calcAnnualSalary(Number(annualForm2.salary), annualForm2.empType||'field');
+  const sal = calcAnnualSalary(Number(annualForm2.hourly||0), annualForm2.empType||'field');
   const el = document.getElementById('annual-sal-preview2');
   if (!el) return;
-  if (!annualForm2.salary) { el.innerHTML=''; return; }
-  el.innerHTML = `
-    <div style="margin-top:8px;background:#E8F0FB;border-radius:8px;overflow:hidden;">
-      ${[['월 기본급 (연봉÷12)',sal.basic],['고정연장수당',sal.fixedOt],['고정야간수당',sal.fixedNight],['월 합계',sal.total]]
-        .map(([l,v])=>`<div style="display:flex;justify-content:space-between;padding:6px 12px;border-bottom:1px solid #DDE4EF;font-size:11px;">
-          <span style="color:#5C6F8A;">${l}</span>
-          <span style="color:${l==='월 합계'?'#1D5BA6':'#1A2540'};font-weight:${l==='월 합계'?700:400};">₩${v.toLocaleString()}</span>
-        </div>`).join('')}
-    </div>`;
+  if (!annualForm2.hourly) { el.innerHTML=''; return; }
+  annualForm2.salary = sal.annual;
+
+  const isOffice = annualForm2.empType === 'office';
+  const empLabel = isOffice ? '💼 사무직' : '🔧 현장직';
+  const rows = isOffice
+    ? [['기본근로수당 (시급×8×5×4.345)', sal.basic, false],
+       ['고정연장수당 (시급×12×4.345)', sal.fixedOt, false],
+       ['고정야간수당', 0, true],
+       ['주휴수당 (시급×8×4.345)', sal.weekly, false],
+       ['월 지급계', sal.total, false],
+       ['계약연봉 (월×12)', sal.annual, false]]
+    : [['기본근로수당 (시급×8×5×4.345)', sal.basic, false],
+       ['고정연장수당', 0, true],
+       ['고정야간수당 (시급×0.5×8×5×4.345)', sal.fixedNight, false],
+       ['주휴수당 (시급×8×4.345)', sal.weekly, false],
+       ['월 지급계', sal.total, false],
+       ['계약연봉 (월×12)', sal.annual, false]];
+
+  el.innerHTML = '<div style="margin-top:8px;border-radius:8px;overflow:hidden;border:1px solid #DDE4EF;">'
+    + '<div style="background:#1D5BA6;padding:7px 12px;font-size:11px;font-weight:700;color:#fff;">' + empLabel + ' 급여 구성</div>'
+    + rows.map(function(r){ var l=r[0],v=r[1],z=r[2];
+        var isTotal = l.includes('지급계')||l.includes('연봉');
+        return '<div style="display:flex;justify-content:space-between;padding:7px 12px;border-bottom:1px solid #F0F4FA;font-size:11px;background:'+(isTotal?'#E8F0FB':'#fff')+';"><span style="color:#5C6F8A;">'+l+'</span>'
+          +'<span style="color:'+(l.includes('연봉')?'#1D5BA6':isTotal?'#1D5BA6':z?'#9AAABF':'#1A2540')+';font-weight:'+(isTotal?700:400)+';">'+(z?'—':'₩'+Math.round(v).toLocaleString())+'</span></div>';
+      }).join('')
+    + '</div>';
 };
 
   window.annualWorkerSelect2=async(wid)=>{
@@ -3388,6 +3422,11 @@ window.annualUpdateSalaryPreview = () => {
           if((dd.contractDate||'')>latestDate){ latestDate=dd.contractDate||''; latestSalary=dd.salary||''; }
         });
         if(latestSalary) annualForm2.salary=latestSalary;
+        // hourly도 불러오기
+        snap.forEach(d=>{
+          const dd=d.data();
+          if((dd.contractDate||'')==latestDate && dd.hourly) annualForm2.hourly=dd.hourly;
+        });
       }catch(e){}
     }
     renderAForm();
@@ -3418,13 +3457,14 @@ window.annualSave2=async()=>{
   try{
     const { doc, setDoc }=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
     const cid=annualForm2.contractDate.replace(/-/g,'');
+    annualForm2.salary = calcAnnualSalary(Number(annualForm2.hourly||0), annualForm2.empType||'field').annual;
     await setDoc(doc(window._db,`annual_contracts/${annualForm2.workerId}/contracts`,cid),{...annualForm2,savedAt:new Date().toISOString(),savedBy:'admin'});
     alert('✅ 연봉계약서 저장 완료!'); renderAnnualMain();
   }catch(e){alert('오류: '+e.message);}
 };
 
 window.annualPreview2=()=>{
-  const f=annualForm2; const sal=calcAnnualSalary(Number(f.salary), f.empType||'field');
+  const f=annualForm2; const sal=calcAnnualSalary(Number(f.hourly||0), f.empType||'field');
   const fmtDp=s=>{if(!s)return'____년 __월 __일';const d=new Date(s);return`${d.getFullYear()}년 ${String(d.getMonth()+1).padStart(2,'0')}월 ${String(d.getDate()).padStart(2,'0')}일`;};
   const ul=(v,w)=>`<span style="display:inline-block;min-width:${w||80}px;border-bottom:1px solid #333;text-align:center;padding:0 2px;">${v||''}</span>`;
   const tr=(l,a,b)=>`<tr><td style="border:1px solid #333;padding:5px 8px;font-size:10pt;">${l}</td><td style="border:1px solid #333;padding:5px 8px;text-align:right;font-size:10pt;">${a}</td><td style="border:1px solid #333;padding:5px 8px;font-size:9pt;color:#555;">${b}</td></tr>`;
@@ -3450,7 +3490,10 @@ window.annualPreview2=()=>{
       <p style="margin-bottom:8px;">② 월급여 임금 구성:</p>
       <table style="width:100%;border-collapse:collapse;margin-bottom:6px;">
         <thead><tr style="background:#E8F0FB;"><th style="border:1px solid #333;padding:6px 8px;text-align:left;font-size:10pt;">항목</th><th style="border:1px solid #333;padding:6px 8px;text-align:right;font-size:10pt;">금액</th><th style="border:1px solid #333;padding:6px 8px;text-align:left;font-size:10pt;">산출근거</th></tr></thead>
-        <tbody>${tr('월 기본급',w(sal.basic),'계약연봉 ÷ 12')}${tr('고정연장수당',w(sal.fixedOt),'기본급÷209×10×4.345×1.5')}${tr('고정야간수당',w(sal.fixedNight),'기본급÷209×40×4.345×0.5')}${tr('상여금','','회사 내규에 따름')}${tr('특별성과급','','회사 내규에 따름')}${tr('특근수당','','주말, 공휴일 출근 시 지급')}
+        <tbody>${f.empType==='office'
+          ? tr('기본근로수당',w(sal.basic),'시급×8×5×4.345')+tr('고정연장수당',w(sal.fixedOt),'시급×12×4.345')+tr('고정야간수당','—','—')+tr('주휴수당',w(sal.weekly),'시급×8×4.345')
+          : tr('기본근로수당',w(sal.basic),'시급×8×5×4.345')+tr('고정연장수당','—','—')+tr('고정야간수당',w(sal.fixedNight),'시급×0.5×8×5×4.345')+tr('주휴수당',w(sal.weekly),'시급×8×4.345')
+        }${tr('상여금','','회사 내규에 따름')}${tr('특별성과급','','회사 내규에 따름')}${tr('특근수당','','주말, 공휴일 출근 시 지급')}
         <tr style="background:#E8F0FB;"><td style="border:1px solid #333;padding:6px 8px;font-weight:700;font-size:10pt;">합계</td><td style="border:1px solid #333;padding:6px 8px;text-align:right;font-weight:700;font-size:10pt;">${w(sal.total)}</td><td style="border:1px solid #333;padding:6px 8px;"></td></tr></tbody>
       </table>
       <p style="font-size:9pt;color:#555;margin-bottom:10px;">※ 위 임금구성은 소정근로시간(주52시간)을 기준으로 작성됨</p>
