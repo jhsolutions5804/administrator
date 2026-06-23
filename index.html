@@ -1555,12 +1555,12 @@ window.renderPayslipWrite = async () => {
       } catch(e) { console.error('연봉계약서 로드 오류:', e); }
     }
 
-    // 초과근로수당 자동 연동 (해당 월 합계 → extraPay)
+    // 초과근로수당 자동 연동 (해당 월 합계 → 상여금)
     if (ps.workerData?.name && ps.month && window.getOvertimeAmountForPayslip) {
       try {
         const otAmt = await window.getOvertimeAmountForPayslip(ps.workerData.name, ps.month);
         if (otAmt > 0) {
-          ps.extraPay = otAmt;
+          ps.bonus = otAmt;
         }
       } catch(e) { console.error('초과근로 연동 오류:', e); }
     }
@@ -1576,7 +1576,7 @@ window.renderPayslipWrite = async () => {
     if (ps.workerData?.name && window.getOvertimeAmountForPayslip) {
       try {
         const otAmt = await window.getOvertimeAmountForPayslip(ps.workerData.name, month);
-        if (otAmt > 0) ps.extraPay = otAmt;
+        if (otAmt > 0) ps.bonus = otAmt;
       } catch(e) { console.error('초과근로 연동 오류:', e); }
     }
     window.psRefresh();
@@ -1635,14 +1635,17 @@ function renderPayslipWriteForm(el, workers, months, calcPayDate) {
           </div>`).join('')}
         ` : `<div style="text-align:center;padding:16px;font-size:12px;color:${C2.mute};">⚠️ 연봉계약서를 먼저 등록해야 지급내역이 자동 연동됩니다.</div>`}
       </div>
-      ${field2('상여금', `<input type="number" value="${ps.bonus}" placeholder="0"
-        oninput="ps.bonus=this.value;window.psRefresh();" ${inp2Style}>`)}
+      ${field2('상여금', `
+        <input type="number" value="${ps.bonus}" placeholder="0"
+          oninput="ps.bonus=this.value;window.psRefresh();" ${inp2Style}>
+        <div style="font-size:10px;color:#9AAABF;margin-top:3px;">⏱ 초과근로 탭 누적 수당 자동 연동 · 직접 수정 가능</div>
+      `)}
       ${field2('특별성과급', `<input type="number" value="${ps.specialBonus}" placeholder="0"
         oninput="ps.specialBonus=this.value;window.psRefresh();" ${inp2Style}>`)}
       ${field2('특근수당', `
         <input type="number" value="${ps.extraPay}" placeholder="0"
           oninput="ps.extraPay=this.value;window.psRefresh();" ${inp2Style}>
-        <div style="font-size:10px;color:#9AAABF;margin-top:3px;">⏱ 초과근로 탭에서 자동 연동 · 직접 수정 가능</div>
+
       `)}
       <div style="display:flex;justify-content:space-between;padding:10px 12px;background:#E8F0FB;border-radius:8px;font-size:14px;font-weight:700;margin-top:4px;">
         <span style="color:${C2.blue};">지급계</span>
