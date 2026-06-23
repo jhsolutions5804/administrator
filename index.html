@@ -1290,14 +1290,13 @@ window.invShowPdf = () => {
 <script>
 // ── 근로계약서 ──
 let labor = {
-  view: 'form', // form | pdf
+  view:'form',
   name:'', jumin:'', address:'', dept:'', job:'',
   startDate:'', endDate:'', contractDate:'', salary:'',
-  signData: null,
+  signData:null,
 };
-
 let laborSignDrawing = false;
-let laborSignCanvas = null;
+let laborSignCanvas  = null;
 
 window.renderLaborTab = () => {
   const el = document.getElementById('tab-labor');
@@ -1306,62 +1305,74 @@ window.renderLaborTab = () => {
   else renderLaborPdf(el);
 };
 
+// 주민번호 자동 포맷
+function fmtJumin(v) {
+  const d = v.replace(/-/g,'').replace(/\D/g,'');
+  if (d.length <= 6) return d;
+  return d.slice(0,6) + '-' + d.slice(6,13);
+}
+
 function wonText(v) {
   if (!v) return '일금 ________원 (\\________)';
   return `일금 ${Number(v).toLocaleString()}원 (\\${Number(v).toLocaleString()})`;
 }
 
 function uline(v, w) {
-  const val = v || '';
-  return `<span style="display:inline-block;min-width:${w||100}px;border-bottom:1px solid #333;text-align:center;padding:0 4px;">${val}</span>`;
+  return `<span style="display:inline-block;min-width:${w||100}px;border-bottom:1px solid #333;text-align:center;padding:0 4px;">${v||''}</span>`;
 }
 
 function fmtDate(s) {
-  if (!s) return '____년 ____월 ____일';
+  if (!s) return '____년 __월 __일';
   const d = new Date(s);
-  return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일`;
+  return `${d.getFullYear()}년 ${String(d.getMonth()+1).padStart(2,'0')}월 ${String(d.getDate()).padStart(2,'0')}일`;
 }
 
 function fmtShort(s) {
-  if (!s) return '        ';
+  if (!s) return '____년  __월  __일';
   const d = new Date(s);
-  return `${d.getFullYear()}  ${d.getMonth()+1}  ${d.getDate()}`;
+  return `${d.getFullYear()}년  ${String(d.getMonth()+1).padStart(2,'0')}월  ${String(d.getDate()).padStart(2,'0')}일`;
+}
+
+const laborInpStyle = `style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:9px 12px;font-size:13px;color:#1A2540;box-sizing:border-box;background:#FAFCFF;"`;
+
+function laborField(label, input) {
+  return `<div style="margin-bottom:12px;">
+    <div style="font-size:11px;font-weight:700;color:#5C6F8A;margin-bottom:5px;">${label}</div>
+    ${input}
+  </div>`;
 }
 
 function renderLaborForm(el) {
   el.innerHTML = `
     <div style="padding:16px;max-width:480px;margin:0 auto;">
 
-      <!-- 기본 정보 -->
       <div style="background:#fff;border-radius:12px;border:1px solid #DDE4EF;padding:16px;margin-bottom:12px;box-shadow:0 1px 4px rgba(29,91,166,0.08);">
         <div style="font-size:12px;font-weight:700;color:#1D5BA6;margin-bottom:12px;">👤 근로자 기본 정보</div>
-        ${laborField('이름', `<input id="lb-name" type="text" value="${labor.name}" placeholder="성명 입력" oninput="labor.name=this.value" ${laborInpStyle}>`)}
-        ${laborField('주민등록번호', `<input id="lb-jumin" type="text" value="${labor.jumin}" placeholder="000000-0000000" oninput="labor.jumin=this.value" ${laborInpStyle}>`)}
-        ${laborField('주소', `<input id="lb-addr" type="text" value="${labor.address}" placeholder="주소 입력" oninput="labor.address=this.value" ${laborInpStyle}>`)}
+        ${laborField('이름', `<input type="text" value="${labor.name}" placeholder="성명 입력" oninput="labor.name=this.value" ${laborInpStyle}>`)}
+        ${laborField('주민등록번호', `<input id="lb-jumin" type="text" value="${labor.jumin}" placeholder="000000-0000000"
+          oninput="labor.jumin=fmtJumin(this.value);this.value=labor.jumin;" maxlength="14" ${laborInpStyle}>`)}
+        ${laborField('주소', `<input type="text" value="${labor.address}" placeholder="주소 입력" oninput="labor.address=this.value" ${laborInpStyle}>`)}
       </div>
 
-      <!-- 소속 및 업무 -->
       <div style="background:#fff;border-radius:12px;border:1px solid #DDE4EF;padding:16px;margin-bottom:12px;box-shadow:0 1px 4px rgba(29,91,166,0.08);">
         <div style="font-size:12px;font-weight:700;color:#1D5BA6;margin-bottom:12px;">💼 소속 및 업무</div>
-        ${laborField('소속', `<input id="lb-dept" type="text" value="${labor.dept}" placeholder="부서/소속 입력" oninput="labor.dept=this.value" ${laborInpStyle}>`)}
-        ${laborField('담당 업무', `<input id="lb-job" type="text" value="${labor.job}" placeholder="담당 업무 입력" oninput="labor.job=this.value" ${laborInpStyle}>`)}
+        ${laborField('소속', `<input type="text" value="${labor.dept}" placeholder="부서/소속 입력" oninput="labor.dept=this.value" ${laborInpStyle}>`)}
+        ${laborField('담당 업무', `<input type="text" value="${labor.job}" placeholder="담당 업무 입력" oninput="labor.job=this.value" ${laborInpStyle}>`)}
       </div>
 
-      <!-- 계약 기간 -->
       <div style="background:#fff;border-radius:12px;border:1px solid #DDE4EF;padding:16px;margin-bottom:12px;box-shadow:0 1px 4px rgba(29,91,166,0.08);">
         <div style="font-size:12px;font-weight:700;color:#1D5BA6;margin-bottom:12px;">📅 계약 기간</div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-          ${laborField('시작일', `<input id="lb-sd" type="date" value="${labor.startDate}" onchange="labor.startDate=this.value" ${laborInpStyle}>`)}
-          ${laborField('종료일', `<input id="lb-ed" type="date" value="${labor.endDate}" onchange="labor.endDate=this.value" ${laborInpStyle}>`)}
+          ${laborField('시작일', `<input type="date" value="${labor.startDate}" onchange="labor.startDate=this.value" ${laborInpStyle}>`)}
+          ${laborField('종료일', `<input type="date" value="${labor.endDate}" onchange="labor.endDate=this.value" ${laborInpStyle}>`)}
         </div>
-        ${laborField('계약 체결일', `<input id="lb-cd" type="date" value="${labor.contractDate}" onchange="labor.contractDate=this.value" ${laborInpStyle}>`)}
+        ${laborField('계약 체결일', `<input type="date" value="${labor.contractDate}" onchange="labor.contractDate=this.value" ${laborInpStyle}>`)}
       </div>
 
-      <!-- 연봉 -->
       <div style="background:#fff;border-radius:12px;border:1px solid #DDE4EF;padding:16px;margin-bottom:12px;box-shadow:0 1px 4px rgba(29,91,166,0.08);">
         <div style="font-size:12px;font-weight:700;color:#1D5BA6;margin-bottom:12px;">💰 임금</div>
         ${laborField('계약 연봉 (원)', `
-          <input id="lb-salary" type="number" value="${labor.salary}" placeholder="숫자만 입력"
+          <input type="number" value="${labor.salary}" placeholder="숫자만 입력"
             oninput="labor.salary=this.value;document.getElementById('lb-salary-preview').textContent=labor.salary?'→ '+wonText(labor.salary):''"
             ${laborInpStyle}>
           <div id="lb-salary-preview" style="font-size:12px;color:#1D5BA6;margin-top:4px;font-weight:600;">
@@ -1370,45 +1381,63 @@ function renderLaborForm(el) {
         `)}
       </div>
 
-      <!-- 서명 -->
       <div style="background:#fff;border-radius:12px;border:1px solid #DDE4EF;padding:16px;margin-bottom:16px;box-shadow:0 1px 4px rgba(29,91,166,0.08);">
         <div style="font-size:12px;font-weight:700;color:#1D5BA6;margin-bottom:12px;">✍️ 근로자 서명</div>
         <div style="text-align:center;">
-          <div style="font-size:11px;color:#5C6F8A;margin-bottom:6px;">(을) 서명란</div>
-          <div style="position:relative;display:inline-block;border:1px solid #DDE4EF;border-radius:8px;overflow:hidden;background:#FAFCFF;">
-            <canvas id="labor-sign-canvas" width="260" height="90"
-              style="display:block;cursor:crosshair;touch-action:none;"></canvas>
-            <div id="labor-sign-hint" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;">
-              <span style="font-size:11px;color:#9AAABF;">손가락으로 서명하세요</span>
-            </div>
-          </div>
-          <div style="margin-top:8px;">
-            <button onclick="laborClearSign()" style="font-size:11px;color:#9AAABF;background:none;border:none;cursor:pointer;text-decoration:underline;">지우기</button>
-          </div>
-          <div style="font-size:11px;color:#9AAABF;margin-top:4px;">터치 또는 마우스로 서명</div>
+          ${labor.signData
+            ? `<img src="${labor.signData}" style="width:160px;height:60px;object-fit:contain;border:1px solid #DDE4EF;border-radius:8px;"/><br/>
+               <button onclick="labor.signData=null;renderLaborTab();" style="font-size:11px;color:#9AAABF;background:none;border:none;cursor:pointer;text-decoration:underline;margin-top:4px;">지우기</button>`
+            : `<button onclick="laborOpenSignPad();"
+                style="padding:10px 24px;background:#E8F0FB;border:2px dashed #1D5BA6;border-radius:10px;color:#1D5BA6;font-size:13px;font-weight:600;cursor:pointer;">
+                ✍️ 서명하기
+              </button>`
+          }
         </div>
       </div>
 
-      <!-- PDF 버튼 -->
       <button onclick="labor.view='pdf';renderLaborTab();"
         style="width:100%;padding:14px;background:#1D5BA6;border:none;border-radius:12px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(29,91,166,0.3);">
         📄 계약서 미리보기 · PDF 출력
       </button>
+    </div>
+
+    <!-- 서명 팝업 -->
+    <div id="labor-sign-popup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:none;align-items:center;justify-content:center;">
+      <div style="background:#fff;border-radius:16px;padding:24px;width:320px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+        <div style="font-size:14px;font-weight:700;color:#1A2540;margin-bottom:16px;">✍️ 근로자 서명</div>
+        <div style="position:relative;border:1px solid #DDE4EF;border-radius:8px;overflow:hidden;background:#FAFCFF;margin-bottom:12px;">
+          <canvas id="labor-sign-canvas" width="272" height="100" style="display:block;cursor:crosshair;touch-action:none;"></canvas>
+          <div id="labor-sign-hint" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;">
+            <span style="font-size:12px;color:#9AAABF;">손가락으로 서명하세요</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="laborClearSign()" style="flex:1;padding:10px;background:#F8FAFD;border:1px solid #DDE4EF;border-radius:8px;font-size:13px;cursor:pointer;color:#5C6F8A;">지우기</button>
+          <button onclick="laborCancelSign()" style="flex:1;padding:10px;background:#F8FAFD;border:1px solid #DDE4EF;border-radius:8px;font-size:13px;cursor:pointer;color:#5C6F8A;">취소</button>
+          <button onclick="laborSaveSign()" style="flex:1;padding:10px;background:#1D5BA6;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;color:#fff;">확인</button>
+        </div>
+      </div>
     </div>`;
 
-  // 서명 캔버스 초기화
+  // 팝업 초기 display 설정
+  setTimeout(() => {
+    const popup = document.getElementById('labor-sign-popup');
+    if (popup) popup.style.display = 'none';
+  }, 50);
+}
+
+window.laborOpenSignPad = () => {
+  const popup = document.getElementById('labor-sign-popup');
+  if (!popup) return;
+  popup.style.display = 'flex';
+
   setTimeout(() => {
     laborSignCanvas = document.getElementById('labor-sign-canvas');
     if (!laborSignCanvas) return;
     const ctx = laborSignCanvas.getContext('2d');
+    ctx.clearRect(0, 0, laborSignCanvas.width, laborSignCanvas.height);
 
-    // 기존 서명 복원
-    if (labor.signData) {
-      const img = new Image();
-      img.onload = () => ctx.drawImage(img, 0, 0);
-      img.src = labor.signData;
-      document.getElementById('labor-sign-hint').style.display = 'none';
-    }
+    const hint = document.getElementById('labor-sign-hint');
 
     const getPos = (e) => {
       const rect = laborSignCanvas.getBoundingClientRect();
@@ -1419,32 +1448,113 @@ function renderLaborForm(el) {
       };
     };
 
-    laborSignCanvas.addEventListener('mousedown',  e => { laborSignDrawing=true; const p=getPos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); });
-    laborSignCanvas.addEventListener('mousemove',  e => { if(!laborSignDrawing)return; ctx.lineWidth=2; ctx.lineCap='round'; ctx.strokeStyle='#1A2540'; const p=getPos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); });
-    laborSignCanvas.addEventListener('mouseup',    () => { laborSignDrawing=false; labor.signData=laborSignCanvas.toDataURL(); document.getElementById('labor-sign-hint').style.display='none'; });
-    laborSignCanvas.addEventListener('mouseleave', () => { if(laborSignDrawing){laborSignDrawing=false; labor.signData=laborSignCanvas.toDataURL();} });
+    laborSignCanvas.onmousedown  = e => { laborSignDrawing=true; const p=getPos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); };
+    laborSignCanvas.onmousemove  = e => { if(!laborSignDrawing)return; ctx.lineWidth=2.5; ctx.lineCap='round'; ctx.strokeStyle='#1A2540'; const p=getPos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); if(hint)hint.style.display='none'; };
+    laborSignCanvas.onmouseup    = () => { laborSignDrawing=false; };
+    laborSignCanvas.onmouseleave = () => { laborSignDrawing=false; };
+
     laborSignCanvas.addEventListener('touchstart', e => { e.preventDefault(); laborSignDrawing=true; const p=getPos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); }, {passive:false});
-    laborSignCanvas.addEventListener('touchmove',  e => { e.preventDefault(); if(!laborSignDrawing)return; ctx.lineWidth=2; ctx.lineCap='round'; ctx.strokeStyle='#1A2540'; const p=getPos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); }, {passive:false});
-    laborSignCanvas.addEventListener('touchend',   e => { e.preventDefault(); laborSignDrawing=false; labor.signData=laborSignCanvas.toDataURL(); document.getElementById('labor-sign-hint').style.display='none'; }, {passive:false});
+    laborSignCanvas.addEventListener('touchmove',  e => { e.preventDefault(); if(!laborSignDrawing)return; ctx.lineWidth=2.5; ctx.lineCap='round'; ctx.strokeStyle='#1A2540'; const p=getPos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); if(hint)hint.style.display='none'; }, {passive:false});
+    laborSignCanvas.addEventListener('touchend',   e => { e.preventDefault(); laborSignDrawing=false; }, {passive:false});
   }, 100);
-}
+};
 
 window.laborClearSign = () => {
   if (!laborSignCanvas) return;
   const ctx = laborSignCanvas.getContext('2d');
   ctx.clearRect(0, 0, laborSignCanvas.width, laborSignCanvas.height);
-  labor.signData = null;
-  document.getElementById('labor-sign-hint').style.display = 'flex';
+  const hint = document.getElementById('labor-sign-hint');
+  if (hint) hint.style.display = 'flex';
 };
 
-const laborInpStyle = `style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:9px 12px;font-size:13px;color:#1A2540;box-sizing:border-box;background:#FAFCFF;"`;
+window.laborCancelSign = () => {
+  const popup = document.getElementById('labor-sign-popup');
+  if (popup) popup.style.display = 'none';
+};
 
-function laborField(label, input) {
-  return `<div style="margin-bottom:12px;">
-    <div style="font-size:11px;font-weight:700;color:#5C6F8A;margin-bottom:5px;letter-spacing:0.5px;">${label}</div>
-    ${input}
-  </div>`;
-}
+window.laborSaveSign = () => {
+  if (laborSignCanvas) {
+    labor.signData = laborSignCanvas.toDataURL();
+  }
+  const popup = document.getElementById('labor-sign-popup');
+  if (popup) popup.style.display = 'none';
+  renderLaborTab();
+};
+
+// 전체 조문 내용
+const LABOR_ARTICLES = `
+<p style="font-weight:700;margin:14px 0 5px;">제6조 【근로시간】</p>
+<p style="margin-bottom:8px;">근로기준법 제50조에 따라 주 40시간 근로를 원칙으로 한다. 다만 현장 여건에 따라 근로기준법 제53조에 의거하여 최대 12시간까지 연장하여 근로할 수 있다. (식사 및 휴게시간은 근로시간에서 제외, 업무가 밀려 남아서 일하고 못 쉬고 일하는 것은 초과근무수당에 해당되지 않는다.)</p>
+
+<p style="font-weight:700;margin:14px 0 5px;">제7조 【휴게시간】</p>
+<p style="margin-bottom:8px;">4시간 근무마다 30분 휴식, 중식 1시간 의무지급을 원칙으로 한다. 다만, 현장 상황에 따라 유연하게 적용한다.</p>
+
+<p style="font-weight:700;margin:14px 0 5px;">제8조 【퇴직금】</p>
+<p style="margin-bottom:4px;">1. "갑"은 "을"의 1년 이상 계속 근로에 대하여 퇴직 전 3개월 평균임금의 30일분을 퇴직금으로 지급한다. (단, 별도로 지급되는 수당은 퇴직금 계산에서 제외된다.)</p>
+<p style="margin-bottom:8px;">2. 4대보험 개인의 선택으로 가입하지 않을 시 퇴직금은 지급하지 아니한다.</p>
+
+<p style="font-weight:700;margin:14px 0 5px;">제9조 【휴일 및 휴가】</p>
+<p style="margin-bottom:4px;">"을"의 휴일과 휴가는 근로자계약의 내용에 따라 결정되며, 회사는 연차휴가와 관련하여 근로자대표와의 합의에 의하여 특정일을 연차휴가로 대체할 수 있다.</p>
+<p style="margin-bottom:4px;">- 계속 근로 1년 이상, 해당 기간 동안 80% 이상이 될 경우 15일의 유급휴가가 부여된다.</p>
+<p style="margin-bottom:4px;">- "갑"은 계속하여 근로한 기간이 1년 미만인 근로자에게 1개월 개근 시 1일의 유급휴가를 부여한다.</p>
+<p style="margin-bottom:8px;">- 유급휴가 미사용 시 별도의 수당 지급은 없다.</p>
+
+<p style="font-weight:700;margin:14px 0 5px;">제10조 【지휘감독 및 근로조건】</p>
+<p style="margin-bottom:8px;">"을"은 "갑"의 소속 단기계약근로자로서 사업주의 지휘감독을 받으며, "갑"의 취업규칙 및 근무지의 제규정을 준수하여야 한다.</p>
+
+<p style="font-weight:700;margin:14px 0 5px;">제11조 【귀책사유】</p>
+<p style="margin-bottom:4px;">1. 직무상의 의무를 위반하거나 근무에 태만하였을 때</p>
+<p style="margin-bottom:4px;">2. "갑" 및 사용사업주의 이미지를 크게 손상하거나 재산상의 피해를 주었을 때</p>
+<p style="margin-bottom:4px;">3. 사용사업주의 업무수행 중 취득한 비밀누설 및 폭행, 파업 등 규율과 질서를 문란케 하였을 때</p>
+<p style="margin-bottom:4px;">4. 취업기간 중 형사상 유죄판결을 받았을 때</p>
+<p style="margin-bottom:4px;">5. 채용조건에 구비된 각종문서가 위조 또는 변조, 허위사실 등이 기재되었을 때</p>
+<p style="margin-bottom:4px;">6. 사용사업주의 허가 없이 3일 이상 결근하였을 때</p>
+<p style="margin-bottom:4px;">7. 무단지각, 조퇴, 외출을 월 3회 이상 하였을 때</p>
+<p style="margin-bottom:4px;">8. 신원조회 결과 전과사실이 있거나 폭행, 절도, 사기, 업무상 횡령 등이 있다고 밝혀졌을 때</p>
+<p style="margin-bottom:4px;">9. "을"의 귀책사유로 문제를 발생시켰을 때</p>
+<p style="margin-bottom:4px;">10. 신체 및 정신상의 결함으로 업무를 수행할 수 없을 때</p>
+<p style="margin-bottom:4px;">11. 직원 및 동료들을 회유하여 타 업체를 소개해준 것이 발각되었을 때</p>
+<p style="margin-bottom:8px;">12. "갑"의 계약기간 내에 동종업체 및 소개업체로 직접 계약 및 이직하였을 때</p>
+
+<p style="font-weight:700;margin:14px 0 5px;">제12조 【손해배상】</p>
+<p style="margin-bottom:8px;">"을"의 제11조 귀책사유로 "갑" 및 사용사업주에게 재산상의 손해를 끼쳤을 경우에는 전적으로 "을"이 책임지며, 이를 지키지 않은 경우에는 "갑"은 "을" 또는 "을"의 보증인에게 월급의 3배의 책임을 물 수 있다.</p>
+
+<p style="font-weight:700;margin:14px 0 5px;">제13조 【재정보증】</p>
+<p style="margin-bottom:4px;">- "을"은 1명의 재정보증인을 설정 신고하거나 "갑"이 요구하는 금액의 신용보증보험에 가입하여야 한다.</p>
+<p style="margin-bottom:8px;">- "갑"은 "을"에게 신용보증보험을 요구할 수 있으며, "을"은 회사의 요구 시 1주일 이내에 제출하여야 한다.</p>
+
+<p style="font-weight:700;margin:14px 0 5px;">제14조 【안전 및 보건에 관한 사항】</p>
+<p style="margin-bottom:4px;">1. "갑"은 근로자의 안전 및 보건에 관하여 관계 법령이 정하는 바에 따라 필요한 조치를 강구한다.</p>
+<p style="margin-bottom:4px;">2. "을"은 신규 입사 시 즉시 채용신체검사서를 제출하여야 하며, 정기 건강진단을 관련법령에 의거 "갑"의 책임 하에 실시하고 "을"은 이에 반드시 응해야 한다.</p>
+<p style="margin-bottom:8px;">3. "을"은 제반 법규 및 "갑"이 정한 제반 안전 교육사항 및 안전수칙을 준수하여야 하며, "을"이 이를 위반하거나 부주의 또는 과실근무로 인한 재해발생 시는 "을"의 귀책사유로서 "갑"에게 이의를 제기할 수 없다.</p>
+
+<p style="font-weight:700;margin:14px 0 5px;">제15조 【취업 전 고지】</p>
+<p style="margin-bottom:8px;">"을"은 본 근로계약의 내용을 취업 전 충분히 숙지하고 이를 성실히 이행한다.</p>
+
+<p style="font-weight:700;margin:14px 0 5px;">제16조 【파견근로계약 및 동의】</p>
+<p style="margin-bottom:8px;">"을"은 본 근로계약의 내용에 이의를 제기하지 아니하며 "을"의 근로조건은 "갑"의 취업규칙 및 근로자계약 범위 내에서 결정되는 것에 동의한다.</p>
+
+<p style="font-weight:700;margin:14px 0 5px;">제17조 【계약의 해지】</p>
+<p style="margin-bottom:4px;">다음 각 호에 해당하는 경우 갑과 을의 근로계약은 해지된다.</p>
+<p style="margin-bottom:4px;">1. "갑"과 "을"의 상호 합의 하에 근무일을 지정하여 해당 날짜까지 근무 후 계약 종료</p>
+<p style="margin-bottom:4px;">2. "을"의 계약종료 의사를 "갑"이 인지한 시점으로부터 당기 후의 1기가 지난 뒤 해지의 효력이 발생 (민법 제660조 3항에 근거)</p>
+<p style="margin-bottom:8px;">3. 제11조 귀책사유 발생 시 "갑"은 일방적으로 "을"과의 근로계약을 해지할 수 있다.</p>
+
+<p style="font-weight:700;margin:14px 0 5px;">제18조 【지급품의 반납】</p>
+<p style="margin-bottom:8px;">퇴직 시에는 "을"은 "갑"으로부터 지급받은 장비, 피복, 기타 이에 준하는 지급품은 필히 반납하여야 하며 반납치 않을 시에는 급여에서 공제한다.</p>
+
+<p style="font-weight:700;margin:14px 0 5px;">제19조 【근로기준법의 적용】</p>
+<p style="margin-bottom:8px;">본 계약에 명시되지 않은 사항은 회사의 취업규칙 및 근로기준법의 해석에 준하여 따른다.</p>
+
+<p style="font-weight:700;margin:14px 0 5px;">제20조 【비밀유지】</p>
+<p style="margin-bottom:4px;">1. "을"은 자신의 계약내용을 관계인에게 누설하지 않는다.</p>
+<p style="margin-bottom:4px;">2. "을"은 근무지에서 발생하는 인사문제를 관리자에게 보고하여야 하며 조치 받을 수 있도록 한다.</p>
+<p style="margin-bottom:8px;">3. "을"은 "갑"에서 발생하는 문제를 외부에 누설하지 않는다.</p>
+
+<p style="font-weight:700;margin:14px 0 5px;">제21조 【계약의 유지】</p>
+<p style="margin-bottom:8px;">"갑"과 "을"은 제2조의 계약기간을 원칙으로 하며 "을"은 이에 동의한다.</p>
+<p style="margin-bottom:8px;">"갑"과 "을"은 위 계약내용이 당사자의 자유로운 의사에 의하여 원만히 체결되었음을 상호 확인하고 각 1통씩 보관한다.</p>
+`;
 
 function renderLaborPdf(el) {
   const signImg = labor.signData
@@ -1463,8 +1573,6 @@ function renderLaborPdf(el) {
           🖨 인쇄 / PDF
         </button>
       </div>
-
-      <!-- 계약서 미리보기 (스크롤) -->
       <div id="labor-pdf-area" style="background:#fff;border-radius:12px;border:1px solid #DDE4EF;padding:28px 24px;font-family:Arial,sans-serif;color:#1A2540;font-size:12px;line-height:1.9;">
 
         <div style="text-align:center;margin-bottom:24px;">
@@ -1472,45 +1580,40 @@ function renderLaborPdf(el) {
           <div style="width:60px;height:2px;background:#333;margin:0 auto;"></div>
         </div>
 
-        <p style="margin-bottom:10px;">
-          제이에이치솔류션 (이하 "갑"이라 한다.)과 근로자 ${uline(labor.name,80)} (이하 "을"이라 한다.)는
-          근로자보호 등에 관한 법률에 의거 다음과 같이 PJT 계약직 근로계약을 체결한다.
-        </p>
+        <p style="margin-bottom:10px;">제이에이치솔류션 (이하 "갑"이라 한다.)과 근로자 ${uline(labor.name,80)} (이하 "을"이라 한다.)는 근로자보호 등에 관한 법률에 의거 다음과 같이 PJT 계약직 근로계약을 체결한다.</p>
 
-        <p style="font-weight:700;margin:16px 0 6px;">제1조 【의 무】</p>
-        <p style="margin-bottom:10px;">"을"은 "갑"의 정규직원으로서 "갑"의 사규에 따른 제규정 및 취업규칙에 정해진 근로조건을 승인하고 근로를 성실히 이행할 의무를 진다.</p>
+        <p style="font-weight:700;margin:14px 0 5px;">제1조 【의 무】</p>
+        <p style="margin-bottom:8px;">"을"은 "갑"의 정규직원으로서 "갑"의 사규에 따른 제규정 및 취업규칙에 정해진 근로조건을 승인하고 근로를 성실히 이행할 의무를 진다.</p>
 
-        <p style="font-weight:700;margin:16px 0 6px;">제2조 【근로기간】</p>
-        <p style="margin-bottom:6px;">1. 근로계약기간 : ${fmtShort(labor.startDate)} ~ ${fmtShort(labor.endDate)}</p>
-        <p style="margin-bottom:10px;">2. PJT계약근로기간이 만료되고 계속 근무의 필요가 있을 때에는 당사자간의 합의 하에 재계약 할 수 있다.</p>
+        <p style="font-weight:700;margin:14px 0 5px;">제2조 【근로기간】</p>
+        <p style="margin-bottom:4px;">1. 근로계약기간 : ${fmtShort(labor.startDate)} ~ ${fmtShort(labor.endDate)}</p>
+        <p style="margin-bottom:8px;">2. PJT계약근로기간이 만료되고 계속 근무의 필요가 있을 때에는 당사자간의 합의 하에 재계약 할 수 있다.</p>
 
-        <p style="font-weight:700;margin:16px 0 6px;">제3조 【근무장소 및 대상업무】</p>
-        <p style="margin-bottom:6px;">1. "을"은 "갑"이 제공하는 근무장소에서 근무하며, "을"은 이에 따른다.</p>
-        <p style="margin-bottom:6px;">2. 대상업무</p>
+        <p style="font-weight:700;margin:14px 0 5px;">제3조 【근무장소 및 대상업무】</p>
+        <p style="margin-bottom:4px;">1. "을"은 "갑"이 제공하는 근무장소에서 근무하며, "을"은 이에 따른다.</p>
+        <p style="margin-bottom:4px;">2. 대상업무</p>
         <p style="margin-bottom:4px;">&nbsp;&nbsp;1) 소속 : ${uline(labor.dept,180)}</p>
         <p style="margin-bottom:4px;">&nbsp;&nbsp;2) 담당 업무 : ${uline(labor.job,160)}</p>
-        <p style="margin-bottom:10px;">&nbsp;&nbsp;3) 기타 관리자의 지시업무</p>
+        <p style="margin-bottom:8px;">&nbsp;&nbsp;3) 기타 관리자의 지시업무</p>
 
-        <p style="font-weight:700;margin:16px 0 6px;">제4조 【근무일, 근로시간 및 주휴일】</p>
+        <p style="font-weight:700;margin:14px 0 5px;">제4조 【근무일, 근로시간 및 주휴일】</p>
         <p style="margin-bottom:4px;">- 근무일은 월요일부터 토요일까지 주5일을 원칙으로 한다.</p>
         <p style="margin-bottom:4px;">- 근로시간은 06:00부터 18:00까지, 휴게시간은 11:00~13:00으로 한다. (고정OT 2시간)</p>
         <p style="margin-bottom:4px;">- 급여에 초과근로수당을 포함하여 지급한다.</p>
-        <p style="margin-bottom:10px;">- 주휴일은 매주 일요일로 정한다.</p>
+        <p style="margin-bottom:8px;">- 주휴일은 매주 일요일로 정한다.</p>
 
-        <p style="font-weight:700;margin:16px 0 6px;">제4조 【임 금】</p>
+        <p style="font-weight:700;margin:14px 0 5px;">제4조 【임 금】</p>
         <p style="margin-bottom:4px;">- 계약연봉 : ${labor.salary ? wonText(labor.salary) : uline('',180)}</p>
         <p style="margin-bottom:4px;">- 세부 지급 사항은 연봉계약서를 기준으로 한다.</p>
-        <p style="margin-bottom:10px;">- 임금 지급일 : 익월 말일 (휴일의 경우 다음 은행 영업일에 맞춰 지급)</p>
+        <p style="margin-bottom:4px;">- 임금 지급일 : 익월 말일 (휴일의 경우 다음 은행 영업일에 맞춰 지급)</p>
+        <p style="margin-bottom:4px;">- 초과근로수당은 (기본시급(기본급/209시간)×초과근무시간×1.5) 계산을 원칙으로 한다.</p>
 
-        <p style="font-weight:700;margin:16px 0 6px;">제5조 【사회보험】</p>
-        <p style="margin-bottom:10px;">☑ 고용보험 &nbsp; ☑ 산재보험 &nbsp; ☑ 국민연금 &nbsp; ☑ 건강보험</p>
+        <p style="font-weight:700;margin:14px 0 5px;">제5조 【사회보험】</p>
+        <p style="margin-bottom:8px;">☑ 고용보험 &nbsp; ☑ 산재보험 &nbsp; ☑ 국민연금 &nbsp; ☑ 건강보험</p>
 
-        <div style="text-align:center;color:#888;font-size:11px;margin:16px 0;border-top:1px dashed #ccc;border-bottom:1px dashed #ccc;padding:8px 0;">
-          제6조 ~ 제21조 (근로시간, 퇴직금, 휴가, 손해배상, 비밀유지 등 표준 조항)
-        </div>
+        ${LABOR_ARTICLES}
 
-        <!-- 계약일자 및 서명 -->
-        <div style="margin-top:24px;">
+        <div style="margin-top:28px;border-top:1px solid #ccc;padding-top:16px;">
           <p style="font-weight:600;margin-bottom:16px;">계약일자 : ${fmtDate(labor.contractDate)}</p>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:16px;">
             <div style="border-top:1px solid #333;padding-top:12px;">
@@ -1525,8 +1628,7 @@ function renderLaborPdf(el) {
               <p style="margin-bottom:4px;">이&nbsp;&nbsp;&nbsp;&nbsp;름 : ${uline(labor.name,80)}</p>
               <p style="margin-bottom:4px;">주민등록번호 : ${uline(labor.jumin,110)}</p>
               <div style="margin-top:8px;display:flex;align-items:center;gap:8px;">
-                <span style="font-size:12px;">(인)</span>
-                ${signImg}
+                <span>(인)</span>${signImg}
               </div>
             </div>
           </div>
@@ -1539,23 +1641,28 @@ window.laborPrint = () => {
   const area = document.getElementById('labor-pdf-area');
   if (!area) return;
   const win = window.open('', '_blank');
-  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>근로계약서</title>
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>근로계약서 - ${labor.name}</title>
     <style>
-      body{margin:0;font-family:Arial,sans-serif;background:#888;display:flex;flex-direction:column;align-items:center;padding:20px;}
+      *{box-sizing:border-box;}
+      body{margin:0;font-family:'Malgun Gothic',Arial,sans-serif;background:#888;display:flex;flex-direction:column;align-items:center;padding:20px;}
       .toolbar{margin-bottom:12px;display:flex;gap:8px;}
       .toolbar button{padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;}
       .btn-print{background:#1D5BA6;border:none;color:#fff;font-weight:700;}
       .btn-back{background:#fff;border:1px solid #DDE4EF;}
-      .a4{width:794px;min-height:1123px;background:#fff;padding:60px 70px;box-shadow:0 4px 24px rgba(0,0,0,0.2);}
-      @media print{body{background:#fff;padding:0;}.toolbar{display:none;}.a4{box-shadow:none;padding:50px 60px;}}
+      .a4{width:210mm;min-height:297mm;background:#fff;padding:20mm 22mm;box-shadow:0 4px 24px rgba(0,0,0,0.2);font-size:10pt;line-height:1.9;color:#1A2540;}
+      @media print{
+        body{background:#fff;padding:0;}
+        .toolbar{display:none;}
+        .a4{box-shadow:none;padding:15mm 20mm;width:100%;}
+      }
     </style></head><body>
     <div class="toolbar">
       <button class="btn-back" onclick="window.close()">← 돌아가기</button>
       <button class="btn-print" onclick="window.print()">🖨 인쇄 / PDF 저장</button>
     </div>
-    <div class="a4" style="font-size:12px;line-height:1.9;color:#1A2540;">
-      ${area.innerHTML}
-    </div></body></html>`);
+    <div class="a4">${area.innerHTML}</div>
+    </body></html>`);
   win.document.close();
 };
 </script>
+
