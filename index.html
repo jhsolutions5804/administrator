@@ -9,7 +9,7 @@
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
   import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
     from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-  import { getFirestore, doc, getDoc, setDoc, serverTimestamp }
+  import { getFirestore, doc, getDoc, getDocs, setDoc, collection, serverTimestamp }
     from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
   const firebaseConfig = {
@@ -105,7 +105,6 @@
     showProgressLoading(true);
     allProgressData = {};
     const daysInMonth = new Date(progressYear, progressMonth, 0).getDate();
-    const dbLog = [];
     const promises = [];
     for (let d = 1; d <= daysInMonth; d++) {
       const dateKey = `${progressYear}-${String(progressMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
@@ -114,14 +113,8 @@
         for (const s of SECTORS) {
           try {
             const snap = await getDoc(doc(db, `progress_checks_${dateKey}`, s.id));
-            if (snap.exists()) {
-              dayData[s.id] = snap.data();
-              const keys = Object.keys(snap.data());
-              dbLog.push(`${dateKey}/${s.id}: ${keys.length}개 키`);
-            }
-          } catch(e) {
-            dbLog.push(`ERROR ${dateKey}/${s.id}: ${e.message}`);
-          }
+            if (snap.exists()) dayData[s.id] = snap.data();
+          } catch(e) {}
         }
         if (Object.keys(dayData).length > 0) allProgressData[dateKey] = dayData;
       })());
@@ -135,17 +128,6 @@
       });
     });
     await Promise.all(promises);
-    // 디버그 결과 화면에 표시
-    const debugEl = document.getElementById('debug-log');
-    if (debugEl) {
-      if (dbLog.length === 0) {
-        debugEl.textContent = '⚠️ 읽힌 데이터 없음 — Firebase 연결 실패 가능성';
-      } else {
-        debugEl.textContent = dbLog.join('\n');
-      }
-      debugEl.style.display = 'block';
-    }
-    console.log('DB 로그:', dbLog);
     showProgressLoading(false);
     renderProgressMonth();
   }
@@ -206,6 +188,128 @@
         rows.push({ date:dateKey, banip:todayBanip, cumBanip:cumBanip.size, install:todayInstall, cumInstall:cumInstall.size });
     });
     return rows;
+  }
+
+
+  // ── 공수 집계 ──
+  const WORKERS = [
+    {id:'w1', name:'서민우', role:'팀장'},
+    {id:'w2', name:'김혁',   role:''},
+    {id:'w3', name:'심산',   role:''},
+    {id:'w4', name:'유지범', role:''},
+    {id:'w5', name:'이미정', role:''},
+    {id:'w6', name:'이승준', role:''},
+    {id:'w7', name:'정대웅', role:''},
+    {id:'w8', name:'태성원', role:''},
+    {id:'w9', name:'미첼',   role:''},
+  ];
+
+  let mandayYear  = new Date().getFullYear();
+  let mandayMonth = new Date().getMonth() + 1;
+
+  window.onMandayTabEnter = () => {
+    mandayYear  = new Date().getFullYear();
+    mandayMonth = new Date().getMonth() + 1;
+    document.getElementById('manday-month-label').textContent =
+      `${mandayYear}년 ${mandayMonth}월`;
+    loadManday();
+  };
+
+  window.changeMandayMonth = (delta) => {
+    mandayMonth += delta;
+    if (mandayMonth > 12) { mandayMonth = 1; mandayYear++; }
+    if (mandayMonth < 1)  { mandayMonth = 12; mandayYear--; }
+    document.getElementById('manday-month-label').textContent =
+      `${mandayYear}년 ${mandayMonth}월`;
+    loadManday();
+  };
+
+  async function loadManday() {
+    document.getElementById('manday-loading').style.display = 'flex';
+    document.getElementById('manday-content').style.display = 'none';
+
+    const daysInMonth = new Date(mandayYear, mandayMonth, 0).getDate();
+    const totals = {};
+    WORKERS.forEach(w => { totals[w.id] = 0; });
+    let totalWorkDays = 0;
+
+    const promises = [];
+    const dailyData = {}; // { dateKey: { w1:1.0, ... } }
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateKey = `${mandayYear}-${String(mandayMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      promises.push((async () => {
+        try {
+          const snap = await getDoc(doc(db, 'worker_manday', dateKey));
+          if (snap.exists()) {
+            const md = snap.data().md || {};
+            dailyData[dateKey] = md;
+            Object.entries(md).forEach(([wid, val]) => {
+              if (totals[wid] !== undefined) totals[wid] += val;
+            });
+          }
+        } catch(e) {}
+      })());
+    }
+    await Promise.all(promises);
+
+    // 전체 공수 합계
+    const totalMd = Object.values(totals).reduce((a,b) => a+b, 0);
+    // 출역 일수 (공수 > 0인 날 수, 인원 무관)
+    const workDayCount = Object.keys(dailyData).length;
+
+    renderMandayTable(totals, totalMd, workDayCount, daysInMonth);
+
+    document.getElementById('manday-loading').style.display = 'none';
+    document.getElementById('manday-content').style.display = 'block';
+  }
+
+  function renderMandayTable(totals, totalMd, workDayCount, daysInMonth) {
+    // 요약 카드
+    document.getElementById('manday-summary').innerHTML = `
+      <div class="summary-cards" style="grid-template-columns:1fr 1fr 1fr;">
+        <div class="s-card"><div class="s-val">${daysInMonth}일</div><div class="s-label">해당 월 일수</div></div>
+        <div class="s-card blue"><div class="s-val">${workDayCount}일</div><div class="s-label">작업 일수</div></div>
+        <div class="s-card accent"><div class="s-val">${totalMd.toFixed(1)}</div><div class="s-label">월 총 공수</div></div>
+      </div>`;
+
+    // 인원별 테이블
+    let rows = '';
+    WORKERS.forEach((w, i) => {
+      const md = totals[w.id] || 0;
+      rows += `<tr style="background:${i%2===0?'#fff':'#F8FAFD'}">
+        <td style="padding:10px 12px;border-bottom:1px solid #F0F4FA;font-weight:600;color:#1A2540;text-align:left;">
+          ${w.name}${w.role ? `<span style="font-size:10px;color:#9AAABF;margin-left:4px;">${w.role}</span>` : ''}
+        </td>
+        <td style="padding:10px 12px;border-bottom:1px solid #F0F4FA;text-align:center;color:${md>0?'#1D5BA6':'#9AAABF'};font-weight:${md>0?700:400};">
+          ${md > 0 ? md.toFixed(1) : '-'}
+        </td>
+        <td style="padding:10px 12px;border-bottom:1px solid #F0F4FA;text-align:center;color:#5C6F8A;font-size:12px;">
+          ${md > 0 ? Math.round(md/0.5)*0.5 + '공수' : '-'}
+        </td>
+      </tr>`;
+    });
+
+    document.getElementById('manday-table-wrap').innerHTML = `
+      <div style="background:#fff;border-radius:12px;border:1px solid #DDE4EF;overflow:hidden;box-shadow:0 1px 4px rgba(29,91,166,0.06);">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead>
+            <tr style="background:#E8F0FB;">
+              <th style="color:#1D5BA6;font-size:11px;font-weight:700;padding:9px 12px;text-align:left;border-bottom:1px solid #DDE4EF;">이름</th>
+              <th style="color:#1D5BA6;font-size:11px;font-weight:700;padding:9px 12px;text-align:center;border-bottom:1px solid #DDE4EF;">월 공수</th>
+              <th style="color:#1D5BA6;font-size:11px;font-weight:700;padding:9px 12px;text-align:center;border-bottom:1px solid #DDE4EF;">비고</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+          <tfoot>
+            <tr style="background:#E8F0FB;">
+              <td style="padding:10px 12px;font-weight:700;color:#1D5BA6;text-align:left;">합계</td>
+              <td style="padding:10px 12px;font-weight:700;color:#1D5BA6;text-align:center;">${totalMd.toFixed(1)}</td>
+              <td style="padding:10px 12px;text-align:center;"></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>`;
   }
 
   // ── 렌더: 월별 ──
@@ -470,7 +574,7 @@ body { font-family:-apple-system,'Apple SD Gothic Neo','Pretendard',sans-serif; 
 
   <div class="tab-bar">
     <button class="tab-btn active" onclick="switchTab(this,'tab-progress');onProgressTabEnter();">📊 공정 현황</button>
-    <button class="tab-btn" onclick="switchTab(this,'tab-manday')">🔧 공수 집계</button>
+    <button class="tab-btn" onclick="switchTab(this,'tab-manday');onMandayTabEnter();">🔧 공수 집계</button>
     <button class="tab-btn" onclick="switchTab(this,'tab-invoice')">📄 정산서</button>
     <button class="tab-btn" onclick="switchTab(this,'tab-salary')">💰 급여 관리</button>
   </div>
@@ -487,14 +591,24 @@ body { font-family:-apple-system,'Apple SD Gothic Neo','Pretendard',sans-serif; 
       <span id="progress-view-title">섹터별 월간 요약</span>
     </div>
     <div id="progress-summary"></div>
-    <pre id="debug-log" style="display:none;background:#fff3e0;border:1px solid #f7941d;border-radius:8px;padding:12px;font-size:11px;color:#5d3a00;white-space:pre-wrap;word-break:break-all;margin-bottom:12px;max-height:200px;overflow-y:auto;"></pre>
     <div id="progress-loading"><div class="spinner"></div><span>데이터 불러오는 중...</span></div>
     <div id="progress-content"><div id="progress-table-wrap"></div></div>
   </div>
 
   <!-- 공수 집계 -->
   <div class="tab-content" id="tab-manday">
-    <div class="coming-soon"><div style="font-size:32px">🔧</div><br>월간 기술인 공수 집계<br><span style="font-size:12px">3단계에서 구현 예정</span></div>
+    <div class="month-nav">
+      <button class="nav-btn" onclick="changeMandayMonth(-1)">◀</button>
+      <span class="month-label" id="manday-month-label">2026년 6월</span>
+      <button class="nav-btn" onclick="changeMandayMonth(1)">▶</button>
+    </div>
+    <div id="manday-summary"></div>
+    <div id="manday-loading" style="display:none;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;gap:12px;color:#9AAABF;">
+      <div class="spinner"></div><span>데이터 불러오는 중...</span>
+    </div>
+    <div id="manday-content" style="display:none;">
+      <div id="manday-table-wrap"></div>
+    </div>
   </div>
 
   <!-- 정산서 -->
