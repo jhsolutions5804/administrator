@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>근로계약서 조회 · 제이에이치솔류션</title>
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+  import { getFirestore, doc, getDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+  const app = initializeApp({
+    apiKey: "AIzaSyCyQxBJ_ftfM0ImBXubmqD5gfzFR54iPmE",
+    authDomain: "p4ph2-fab-506a7.firebaseapp.com",
+    projectId: "p4ph2-fab-506a7",
+    storageBucket: "p4ph2-fab-506a7.appspot.com",
+    messagingSenderId: "369463179140",
+    appId: "1:369463179140:web:c6ad5f3a1b98130c99fe63"
+  });
+  const db = getFirestore(app);
+  window._db = db;
+  window._doc = doc;
+  window._getDoc = getDoc;
+</script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:-apple-system,'Apple SD Gothic Neo',sans-serif; background:#F4F7FB; color:#1A2540; min-height:100vh; }
+.header { background:#1D5BA6; padding:0 20px; height:56px; display:flex; align-items:center; box-shadow:0 2px 8px rgba(29,91,166,0.2); }
+.header-title { font-size:15px; font-weight:800; color:#fff; }
+.header-sub   { font-size:11px; color:rgba(255,255,255,0.6); }
+.content { padding:24px 16px; max-width:420px; margin:0 auto; }
+.card { background:#fff; border-radius:12px; border:1px solid #DDE4EF; padding:20px; margin-bottom:12px; box-shadow:0 1px 4px rgba(29,91,166,0.08); }
+.card-title { font-size:13px; font-weight:700; color:#1D5BA6; margin-bottom:16px; }
+.field { margin-bottom:12px; }
+.field-label { font-size:11px; font-weight:700; color:#5C6F8A; margin-bottom:5px; }
+.field input { width:100%; border:1px solid #DDE4EF; border-radius:8px; padding:10px 12px; font-size:13px; color:#1A2540; background:#FAFCFF; }
+.btn { width:100%; padding:13px; background:#1D5BA6; border:none; border-radius:10px; color:#fff; font-size:14px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(29,91,166,0.25); }
+.result-badge { display:inline-block; background:#DCFCE7; color:#16A34A; font-size:11px; font-weight:700; padding:3px 10px; border-radius:10px; margin-bottom:12px; }
+.row { display:flex; padding:9px 0; border-bottom:1px solid #F0F4FA; font-size:13px; }
+.row-label { color:#5C6F8A; min-width:90px; font-weight:600; flex-shrink:0; }
+.row-value { color:#1A2540; flex:1; }
+.empty { text-align:center; padding:48px 20px; color:#9AAABF; font-size:13px; }
+.empty .icon { font-size:36px; margin-bottom:12px; }
+.btn-pdf { width:100%; padding:11px; background:#5C6F8A; border:none; border-radius:10px; color:#fff; font-size:13px; font-weight:700; cursor:pointer; margin-top:12px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="header-title">근로계약서 조회</div>
+    <div class="header-sub">제이에이치솔류션</div>
+  </div>
+</div>
+
+<div class="content">
+  <div class="card">
+    <div class="card-title">🔍 본인 계약서 조회</div>
+    <div class="field">
+      <div class="field-label">이름</div>
+      <input type="text" id="v-name" placeholder="성명 입력"/>
+    </div>
+    <div class="field">
+      <div class="field-label">주민등록번호</div>
+      <input type="text" id="v-jumin" placeholder="000000-0000000" maxlength="14"
+        oninput="this.value=fmtJumin(this.value)"/>
+    </div>
+    <button class="btn" onclick="search()">조회하기</button>
+  </div>
+
+  <div id="result"></div>
+</div>
+
+<script>
+function fmtJumin(v) {
+  const d = v.replace(/-/g,'').replace(/\D/g,'');
+  return d.length <= 6 ? d : d.slice(0,6)+'-'+d.slice(6,13);
+}
+
+function fmtDate(s) {
+  if (!s) return '-';
+  const d = new Date(s);
+  return `${d.getFullYear()}년 ${String(d.getMonth()+1).padStart(2,'0')}월 ${String(d.getDate()).padStart(2,'0')}일`;
+}
+
+function wonText(v) {
+  if (!v) return '-';
+  return `일금 ${Number(v).toLocaleString()}원`;
+}
+
+function uline(v, w) {
+  return `<span style="display:inline-block;min-width:${w||80}px;border-bottom:1px solid #333;text-align:center;padding:0 4px;">${v||''}</span>`;
+}
+
+const ARTICLES = `
+<p style="font-weight:700;margin:12px 0 4px;">제1조 【의 무】</p>
+<p style="margin-bottom:6px;">"을"은 "갑"의 정규직원으로서 "갑"의 사규에 따른 제규정 및 취업규칙에 정해진 근로조건을 승인하고 근로를 성실히 이행할 의무를 진다.</p>
+<p style="font-weight:700;margin:12px 0 4px;">제3조 【근무장소 및 대상업무】</p>
+<p style="margin-bottom:4px;">1. "을"은 "갑"이 제공하는 근무장소에서 근무하며, "을"은 이에 따른다.</p>
+<p style="font-weight:700;margin:12px 0 4px;">제4조 【근무일, 근로시간 및 주휴일】</p>
+<p style="margin-bottom:4px;">- 근무일은 월요일부터 토요일까지 주5일을 원칙으로 한다.</p>
+<p style="margin-bottom:4px;">- 근로시간은 06:00부터 18:00까지, 휴게시간은 11:00~13:00 (고정OT 2시간)</p>
+<p style="margin-bottom:4px;">- 급여에 초과근로수당을 포함하여 지급한다.</p>
+<p style="margin-bottom:6px;">- 주휴일은 매주 일요일로 정한다.</p>
+<p style="font-weight:700;margin:12px 0 4px;">제5조 【사회보험】</p>
+<p style="margin-bottom:6px;">☑ 고용보험 &nbsp; ☑ 산재보험 &nbsp; ☑ 국민연금 &nbsp; ☑ 건강보험</p>
+<p style="font-weight:700;margin:12px 0 4px;">제6조 【근로시간】</p>
+<p style="margin-bottom:6px;">근로기준법 제50조에 따라 주 40시간 근로를 원칙으로 하며 최대 12시간까지 연장 가능.</p>
+<p style="font-weight:700;margin:12px 0 4px;">제7조 【휴게시간】</p>
+<p style="margin-bottom:6px;">4시간 근무마다 30분 휴식, 중식 1시간 의무지급을 원칙으로 한다.</p>
+<p style="font-weight:700;margin:12px 0 4px;">제8조 【퇴직금】</p>
+<p style="margin-bottom:4px;">1. 1년 이상 계속 근로 시 퇴직 전 3개월 평균임금의 30일분 지급.</p>
+<p style="margin-bottom:6px;">2. 4대보험 미가입 시 퇴직금 지급하지 아니한다.</p>
+<p style="font-weight:700;margin:12px 0 4px;">제9조 【휴일 및 휴가】</p>
+<p style="margin-bottom:4px;">- 1년 이상 근로, 80% 이상 출근 시 15일 유급휴가 부여.</p>
+<p style="margin-bottom:6px;">- 1년 미만 근로자: 1개월 개근 시 1일 유급휴가 부여.</p>
+<p style="font-weight:700;margin:12px 0 4px;">제10조 【지휘감독 및 근로조건】</p>
+<p style="margin-bottom:6px;">"을"은 사업주의 지휘감독을 받으며 취업규칙 및 제규정을 준수하여야 한다.</p>
+<p style="font-weight:700;margin:12px 0 4px;">제11조 【귀책사유】</p>
+<p style="margin-bottom:2px;">1. 직무상 의무 위반 또는 근무 태만 시</p>
+<p style="margin-bottom:2px;">2. 이미지 손상 또는 재산상 피해 시</p>
+<p style="margin-bottom:2px;">3. 비밀누설, 폭행, 파업 등 질서 문란 시</p>
+<p style="margin-bottom:2px;">4. 형사상 유죄판결 시</p>
+<p style="margin-bottom:2px;">5. 서류 위조·변조·허위사실 기재 시</p>
+<p style="margin-bottom:2px;">6. 무단 3일 이상 결근 시</p>
+<p style="margin-bottom:6px;">7. 계약기간 내 동종업체 이직 시</p>
+<p style="font-weight:700;margin:12px 0 4px;">제12조 【손해배상】</p>
+<p style="margin-bottom:6px;">귀책사유로 손해 발생 시 "을"이 책임지며 월급의 3배까지 물 수 있다.</p>
+<p style="font-weight:700;margin:12px 0 4px;">제13조~제21조</p>
+<p style="margin-bottom:6px;">재정보증, 안전보건, 취업전고지, 파견동의, 계약해지, 지급품반납, 근로기준법적용, 비밀유지, 계약유지에 관한 사항은 당사 취업규칙 및 근로기준법에 준한다.</p>`;
+
+let lastData = null;
+
+async function search() {
+  const name  = document.getElementById('v-name').value.trim();
+  const jumin = fmtJumin(document.getElementById('v-jumin').value.trim());
+  const el    = document.getElementById('result');
+
+  if (!name || !jumin) { alert('이름과 주민등록번호를 입력해 주세요.'); return; }
+  if (jumin.replace(/-/g,'').length < 13) { alert('주민등록번호 13자리를 입력해 주세요.'); return; }
+
+  el.innerHTML = '<div class="empty"><div class="icon">⏳</div>조회 중...</div>';
+
+  if (!window._db) { setTimeout(search, 500); return; }
+
+  try {
+    const id   = `${name}_${jumin.replace(/-/g,'')}`;
+    const snap = await window._getDoc(window._doc(window._db, 'labor_contracts', id));
+
+    if (!snap.exists()) {
+      el.innerHTML = `<div class="empty"><div class="icon">📭</div>계약서를 찾을 수 없습니다.<br/><span style="font-size:12px;color:#9AAABF;">이름과 주민번호를 확인해 주세요.</span></div>`;
+      return;
+    }
+
+    const d = snap.data();
+    lastData = d;
+
+    const signHtml = d.signData
+      ? `<img src="${d.signData}" style="width:100px;height:40px;object-fit:contain;opacity:0.9;"/>`
+      : '-';
+
+    el.innerHTML = `
+      <div class="card">
+        <div class="result-badge">✅ 계약서 확인됨</div>
+        <div class="row"><span class="row-label">이름</span><span class="row-value">${d.name}</span></div>
+        <div class="row"><span class="row-label">계약일자</span><span class="row-value">${fmtDate(d.contractDate)}</span></div>
+        <div class="row"><span class="row-label">계약기간</span><span class="row-value">${fmtDate(d.startDate)} ~<br/>${fmtDate(d.endDate)}</span></div>
+        <div class="row"><span class="row-label">소속</span><span class="row-value">${d.dept||'-'}</span></div>
+        <div class="row"><span class="row-label">담당업무</span><span class="row-value">${d.job||'-'}</span></div>
+        <div class="row"><span class="row-label">계약연봉</span><span class="row-value">${wonText(d.salary)}</span></div>
+        <div class="row"><span class="row-label">서명</span><span class="row-value">${signHtml}</span></div>
+        <button class="btn-pdf" onclick="printContract()">🖨 계약서 PDF 출력</button>
+      </div>`;
+  } catch(e) {
+    el.innerHTML = `<div class="empty"><div class="icon">⚠️</div>오류: ${e.message}</div>`;
+  }
+}
+
+function printContract() {
+  if (!lastData) return;
+  const d = lastData;
+  const signImg = d.signData
+    ? `<img src="${d.signData}" style="width:100px;height:40px;object-fit:contain;opacity:0.9;vertical-align:middle;"/>`
+    : `<span style="display:inline-block;width:100px;height:40px;border:1px dashed #ccc;vertical-align:middle;"></span>`;
+
+  const win = window.open('','_blank');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>근로계약서 - ${d.name}</title>
+    <style>
+      body{margin:0;font-family:'Malgun Gothic',Arial,sans-serif;background:#888;display:flex;flex-direction:column;align-items:center;padding:20px;}
+      .toolbar{margin-bottom:12px;display:flex;gap:8px;}
+      .a4{width:210mm;min-height:297mm;background:#fff;padding:20mm 22mm;box-shadow:0 4px 24px rgba(0,0,0,0.2);font-size:10pt;line-height:1.9;color:#1A2540;}
+      @media print{body{background:#fff;padding:0;}.toolbar{display:none;}.a4{box-shadow:none;padding:15mm 20mm;width:100%;}}
+    </style></head><body>
+    <div class="toolbar">
+      <button style="padding:8px 16px;background:#fff;border:1px solid #DDE4EF;border-radius:8px;cursor:pointer;" onclick="window.close()">← 닫기</button>
+      <button style="padding:8px 16px;background:#1D5BA6;border:none;border-radius:8px;color:#fff;font-weight:700;cursor:pointer;" onclick="window.print()">🖨 인쇄 / PDF</button>
+    </div>
+    <div class="a4">
+      <div style="text-align:center;margin-bottom:28px;">
+        <div style="font-size:22pt;font-weight:800;letter-spacing:6px;margin-bottom:8px;">근 로 계 약 서</div>
+        <div style="width:60px;height:2px;background:#333;margin:0 auto;"></div>
+      </div>
+      <p style="margin-bottom:10px;">제이에이치솔류션 (이하 "갑"이라 한다.)과 근로자 ${uline(d.name,80)} (이하 "을"이라 한다.)는 근로자보호 등에 관한 법률에 의거 다음과 같이 PJT 계약직 근로계약을 체결한다.</p>
+      <p style="font-weight:700;margin:14px 0 5px;">제2조 【근로기간】</p>
+      <p style="margin-bottom:4px;">1. 근로계약기간 : ${fmtDate(d.startDate)} ~ ${fmtDate(d.endDate)}</p>
+      <p style="margin-bottom:8px;">2. PJT계약근로기간이 만료되고 계속 근무의 필요가 있을 때에는 당사자간의 합의 하에 재계약 할 수 있다.</p>
+      <p style="font-weight:700;margin:14px 0 5px;">제3조 【근무장소 및 대상업무】</p>
+      <p style="margin-bottom:4px;">&nbsp;&nbsp;1) 소속 : ${uline(d.dept,180)}</p>
+      <p style="margin-bottom:4px;">&nbsp;&nbsp;2) 담당 업무 : ${uline(d.job,160)}</p>
+      <p style="margin-bottom:8px;">&nbsp;&nbsp;3) 기타 관리자의 지시업무</p>
+      <p style="font-weight:700;margin:14px 0 5px;">제4조 【임 금】</p>
+      <p style="margin-bottom:4px;">- 계약연봉 : ${d.salary ? `일금 ${Number(d.salary).toLocaleString()}원 (\\${Number(d.salary).toLocaleString()})` : uline('',180)}</p>
+      <p style="margin-bottom:8px;">- 세부 지급 사항은 연봉계약서를 기준으로 한다. 임금 지급일 : 익월 말일</p>
+      ${ARTICLES}
+      <div style="margin-top:28px;border-top:1px solid #ccc;padding-top:16px;">
+        <p style="font-weight:600;margin-bottom:16px;">계약일자 : ${fmtDate(d.contractDate)}</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:16px;">
+          <div style="border-top:1px solid #333;padding-top:12px;">
+            <p style="font-weight:700;margin-bottom:6px;">(갑)</p>
+            <p style="margin-bottom:4px;">사업체명 : 제이에이치 테크</p>
+            <p style="margin-bottom:4px;">대&nbsp;&nbsp;&nbsp;&nbsp;표 : 김 종 화 (인)</p>
+            <p style="margin-bottom:4px;">사업자번호 : 383-09-02847</p>
+          </div>
+          <div style="border-top:1px solid #333;padding-top:12px;">
+            <p style="font-weight:700;margin-bottom:6px;">(을)</p>
+            <p style="margin-bottom:4px;">주&nbsp;&nbsp;소 : ${uline(d.address,140)}</p>
+            <p style="margin-bottom:4px;">이&nbsp;&nbsp;름 : ${uline(d.name,80)}</p>
+            <p style="margin-bottom:4px;">주민등록번호 : ${uline(d.jumin,110)}</p>
+            <div style="margin-top:8px;display:flex;align-items:center;gap:8px;">
+              <span>(인)</span>${signImg}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div></body></html>`);
+  win.document.close();
+}
+</script>
+</body>
+</html>
