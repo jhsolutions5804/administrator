@@ -2982,7 +2982,7 @@ window.rosterDelete = async (id, name) => {
 // 📝 근로계약서 (재구성)
 // ════════════════════════════════
 let laborView2 = 'main';
-let laborForm2 = { workerId:'', name:'', jumin:'', phone:'', address:'', dept:'', rank:'', job:'', startDate:'', endDate:'', contractDate:'', salary:'', signData:null };
+let laborForm2 = { workerId:'', name:'', jumin:'', phone:'', address:'', dept:'', rank:'', job:'', startDate:'', endDate:'', contractDate:'', hourly:'', salary:'', signData:null };
 let laborSelectedWorker2 = null;
 let laborSignCanvas2 = null, laborSignDrawing2 = false;
 
@@ -3005,7 +3005,7 @@ window.renderLaborRegister = async () => {
   window._laborWorkers2 = workers;
 
   const renderForm = () => {
-    const sal = laborForm2.salary ? `<div style="font-size:12px;color:${C2.blue};margin-top:4px;font-weight:600;">→ 금 ${Number(laborForm2.salary).toLocaleString()}원</div>` : '';
+    // sal 변수는 시급 기반으로 대체됨
     el.innerHTML = wrap2(`
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
         ${backBtn2('renderLaborMain()')}
@@ -3034,7 +3034,11 @@ window.renderLaborRegister = async () => {
       `)}
       ${card2('💼 담당 업무', field2('담당업무',`<input type="text" value="${laborForm2.job}" placeholder="담당 업무 입력" oninput="laborForm2.job=this.value" ${inp2Style}>`))}
       ${card2('💰 임금', `
-        ${field2('계약 연봉 (원)',`<input type="number" value="${laborForm2.salary}" placeholder="숫자만 입력" oninput="laborForm2.salary=this.value" ${inp2Style}>${sal}`)}
+        ${field2('시급 (원)', `<input type="number" value="${laborForm2.hourly}" placeholder="시급 입력 (숫자만)"
+            oninput="laborForm2.hourly=this.value;laborUpdateSalaryPreview();" ${inp2Style}>`)}
+        <div id="labor-sal-preview2">
+          ${laborForm2.hourly ? laborSalaryPreviewHtml(laborForm2) : ''}
+        </div>
       `)}
       ${card2('✍️ 근로자 서명', `
         <div style="text-align:center;">
@@ -3101,6 +3105,49 @@ window.laborClearSign2=()=>{if(laborSignCanvas2){laborSignCanvas2.getContext('2d
 window.laborCancelSign2=()=>{const p=document.getElementById('labor-sign2-popup');if(p)p.style.display='none';};
 window.laborSaveSign2=()=>{if(laborSignCanvas2)laborForm2.signData=laborSignCanvas2.toDataURL();const p=document.getElementById('labor-sign2-popup');if(p)p.style.display='none';if(window.laborRefreshForm2)window.laborRefreshForm2();};
 
+
+// 근로계약서 시급 기반 급여 미리보기
+function laborSalaryPreviewHtml(f) {
+  const empType = (window._laborWorkers2||[]).find(w=>w.id===f.workerId)?.empType || 'field';
+  const sal = calcAnnualSalary(Number(f.hourly||0), empType);
+  if (!sal.annual) return '';
+
+  const isOffice = empType === 'office';
+  const empLabel = isOffice ? '💼 사무직' : '🔧 현장직';
+  const rows = isOffice
+    ? [['기본근로수당 (시급×8×5×4.345)', sal.basic],
+       ['고정연장수당 (시급×12×4.345)', sal.fixedOt],
+       ['고정야간수당', null],
+       ['주휴수당 (시급×8×4.345)', sal.weekly],
+       ['월 지급계', sal.total],
+       ['계약연봉 (월×12)', sal.annual]]
+    : [['기본근로수당 (시급×8×5×4.345)', sal.basic],
+       ['고정연장수당', null],
+       ['고정야간수당 (시급×0.5×8×5×4.345)', sal.fixedNight],
+       ['주휴수당 (시급×8×4.345)', sal.weekly],
+       ['월 지급계', sal.total],
+       ['계약연봉 (월×12)', sal.annual]];
+
+  return '<div style="margin-top:8px;border-radius:8px;overflow:hidden;border:1px solid #DDE4EF;">'
+    + '<div style="background:#1D5BA6;padding:7px 12px;font-size:11px;font-weight:700;color:#fff;">' + empLabel + ' 급여 구성</div>'
+    + rows.map(function(r){
+        var l=r[0], v=r[1];
+        var isTotal = l.includes('지급계') || l.includes('연봉');
+        var isNull  = v === null;
+        return '<div style="display:flex;justify-content:space-between;padding:7px 12px;border-bottom:1px solid #F0F4FA;font-size:11px;background:'+(isTotal?'#E8F0FB':'#fff')+';"><span style="color:#5C6F8A;">'+l+'</span>'
+          +'<span style="color:'+(l.includes('연봉')?'#1D5BA6':isTotal?'#1D5BA6':isNull?'#9AAABF':'#1A2540')+';font-weight:'+(isTotal?700:400)+';">'+(isNull?'—':'₩'+Math.round(v).toLocaleString())+'</span></div>';
+      }).join('')
+    + '</div>';
+}
+
+window.laborUpdateSalaryPreview = () => {
+  const empType = (window._laborWorkers2||[]).find(w=>w.id===laborForm2.workerId)?.empType || 'field';
+  const sal = calcAnnualSalary(Number(laborForm2.hourly||0), empType);
+  laborForm2.salary = sal.annual;
+  const el = document.getElementById('labor-sal-preview2');
+  if (!el) return;
+  el.innerHTML = laborSalaryPreviewHtml(laborForm2);
+};
 window.laborSave2 = async () => {
   if(!laborForm2.workerId||!laborForm2.contractDate){alert('근로자와 계약일자는 필수입니다.');return;}
   if(!window._db){alert('Firebase 연결 필요');return;}
@@ -3108,6 +3155,8 @@ window.laborSave2 = async () => {
   try {
     const { doc, setDoc, collection } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
     const contractId = laborForm2.contractDate.replace(/-/g,'');
+    const _emp = (window._laborWorkers2||[]).find(w=>w.id===laborForm2.workerId);
+    laborForm2.salary = calcAnnualSalary(Number(laborForm2.hourly||0), _emp?.empType||'field').annual;
     await setDoc(doc(window._db,`labor_contracts/${laborForm2.workerId}/contracts`,contractId), {
       ...laborForm2, savedAt:new Date().toISOString(), savedBy:'admin'
     });
