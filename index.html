@@ -244,6 +244,8 @@
           if (snap.exists()) {
             const md = snap.data().md || {};
             dailyData[dateKey] = md;
+            window._mandayCache = window._mandayCache || {};
+            window._mandayCache[d] = md;
             Object.entries(md).forEach(([wid, val]) => {
               if (totals[wid] !== undefined) totals[wid] += val;
             });
@@ -264,6 +266,85 @@
     document.getElementById('manday-content').style.display = 'block';
   }
 
+
+  // ── 공수 엑셀 다운로드 ──
+  window.downloadMandayExcel = () => {
+    const year = mandayYear, month = mandayMonth;
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const TEAM_RATE = 190000;
+
+    // 날짜별 공수 데이터 수집 (Firebase 캐시에서)
+    // mandayCache에서 읽기
+    const dayData = {};
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateKey = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      if (window._mandayCache && window._mandayCache[dateKey]) {
+        dayData[d] = window._mandayCache[dateKey];
+      }
+    }
+
+    // 헤더 행
+    const dayHeaders = Array.from({length: daysInMonth}, (_,i) => `${i+1}일`);
+    const header = ['이름', ...dayHeaders, '출근일수', '공수합계'];
+
+    const rows = [header];
+    const totals = {};
+    WORKERS.forEach(w => { totals[w.id] = 0; });
+
+    // 인원별 행
+    WORKERS.forEach(w => {
+      const row = [w.role ? `${w.name} ${w.role}` : w.name];
+      let attend = 0;
+      for (let d = 1; d <= daysInMonth; d++) {
+        const md = (dayData[d] || {})[w.id];
+        if (md) { row.push(md); attend++; totals[w.id] += md; }
+        else row.push(null);
+      }
+      row.push(attend);
+      row.push(totals[w.id] || null);
+      rows.push(row);
+    });
+
+    // 투입 인원 행
+    const crewRow = ['투입 인원'];
+    for (let d = 1; d <= daysInMonth; d++) {
+      const crew = WORKERS.filter(w => (dayData[d]||{})[w.id]).length;
+      crewRow.push(crew || null);
+    }
+    crewRow.push(null);
+    crewRow.push(crewRow.slice(1, daysInMonth+1).reduce((a,b)=>a+(b||0),0));
+    rows.push(crewRow);
+
+    // 투입 공수 행
+    const mdRow = ['투입 공수'];
+    for (let d = 1; d <= daysInMonth; d++) {
+      const total = Object.values(dayData[d]||{}).reduce((a,b)=>a+b,0);
+      mdRow.push(total || null);
+    }
+    mdRow.push(null);
+    mdRow.push(mdRow.slice(1, daysInMonth+1).reduce((a,b)=>a+(b||0),0));
+    rows.push(mdRow);
+
+    // 합계/단가/지급계
+    const totalMd = Object.values(totals).reduce((a,b)=>a+b,0);
+    rows.push([]);
+    rows.push(['전체 공수 합계', ...Array(daysInMonth+1).fill(null), totalMd]);
+    rows.push(['팀 단가',        ...Array(daysInMonth+1).fill(null), TEAM_RATE]);
+    rows.push([`${year}년 ${month}월 지급계`, ...Array(daysInMonth+1).fill(null), totalMd * TEAM_RATE]);
+
+    // SheetJS로 엑셀 생성
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+
+    // 열 너비
+    const wscols = [{wch:14}];
+    for (let i=0; i<daysInMonth; i++) wscols.push({wch:5});
+    wscols.push({wch:8}, {wch:9});
+    ws['!cols'] = wscols;
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '공수집계');
+    XLSX.writeFile(wb, `${year}년${String(month).padStart(2,'0')}월_공수집계표.xlsx`);
+  };
   function renderMandayTable(totals, totalMd, workDayCount, daysInMonth) {
     // 요약 카드
     document.getElementById('manday-summary').innerHTML = `
@@ -531,6 +612,7 @@ body { font-family:-apple-system,'Apple SD Gothic Neo','Pretendard',sans-serif; 
 .spinner { width:28px; height:28px; border:3px solid #DDE4EF; border-top-color:#1D5BA6; border-radius:50%; animation:spin 0.8s linear infinite; }
 @keyframes spin { to { transform:rotate(360deg); } }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -607,6 +689,11 @@ body { font-family:-apple-system,'Apple SD Gothic Neo','Pretendard',sans-serif; 
       <div class="spinner"></div><span>데이터 불러오는 중...</span>
     </div>
     <div id="manday-content" style="display:none;">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+        <button onclick="downloadMandayExcel()" style="display:flex;align-items:center;gap:6px;background:#16A34A;border:none;border-radius:8px;color:#fff;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;box-shadow:0 2px 6px rgba(22,163,74,0.3);">
+          📥 엑셀 다운로드
+        </button>
+      </div>
       <div id="manday-table-wrap"></div>
     </div>
   </div>
