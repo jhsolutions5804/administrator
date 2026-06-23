@@ -1563,14 +1563,18 @@ function renderLaborPdf(el) {
 
   el.innerHTML = `
     <div style="padding:12px;">
-      <div style="display:flex;gap:8px;margin-bottom:12px;">
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
         <button onclick="labor.view='form';renderLaborTab();"
           style="flex:1;padding:10px;background:#fff;border:1px solid #DDE4EF;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;color:#5C6F8A;">
-          ← 수정하기
+          ← 수정
         </button>
         <button onclick="laborPrint();"
-          style="flex:1;padding:10px;background:#1D5BA6;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;color:#fff;">
-          🖨 인쇄 / PDF
+          style="flex:1;padding:10px;background:#5C6F8A;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;color:#fff;">
+          🖨 A4 미리보기
+        </button>
+        <button onclick="laborConfirm();"
+          style="flex:1;padding:10px;background:#16A34A;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;color:#fff;">
+          ✅ 확정 저장
         </button>
       </div>
       <div id="labor-pdf-area" style="background:#fff;border-radius:12px;border:1px solid #DDE4EF;padding:28px 24px;font-family:Arial,sans-serif;color:#1A2540;font-size:12px;line-height:1.9;">
@@ -1636,6 +1640,40 @@ function renderLaborPdf(el) {
       </div>
     </div>`;
 }
+
+window.laborConfirm = async () => {
+  if (!labor.name || !labor.jumin || !labor.contractDate) {
+    alert('이름, 주민등록번호, 계약일자는 필수 입력 항목입니다.');
+    return;
+  }
+  if (!confirm(`${labor.name}님의 근로계약서를 확정 저장하시겠습니까?\n저장 후 근로자가 조회할 수 있습니다.`)) return;
+
+  if (!window._db || !window._doc || !window._setDoc) {
+    alert('Firebase 연결이 필요합니다.');
+    return;
+  }
+
+  try {
+    const contractId = `${labor.name}_${labor.jumin.replace(/-/g,'')}`;
+    await window._setDoc(window._doc(window._db, 'labor_contracts', contractId), {
+      name:         labor.name,
+      jumin:        labor.jumin,
+      address:      labor.address,
+      dept:         labor.dept,
+      job:          labor.job,
+      startDate:    labor.startDate,
+      endDate:      labor.endDate,
+      contractDate: labor.contractDate,
+      salary:       labor.salary,
+      signData:     labor.signData || '',
+      savedAt:      new Date().toISOString(),
+      savedBy:      'admin',
+    });
+    alert('✅ 저장 완료!\n근로자가 contract.html에서 이름과 주민번호로 조회할 수 있습니다.');
+  } catch(e) {
+    alert('저장 중 오류: ' + e.message);
+  }
+};
 
 window.laborPrint = () => {
   const area = document.getElementById('labor-pdf-area');
