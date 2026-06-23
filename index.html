@@ -867,38 +867,45 @@ window.invChangeMonth = async (month) => {
     });
   });
 
-  // Firebase 데이터 반영
+  // Firebase 데이터 반영 — 완전 병렬 처리
   if (window._db && window._doc && window._getDoc) {
+    // 공정 반입 병렬 조회
+    const progPromises = [];
     for (let d = 1; d <= daysInMonth; d++) {
       const dateKey = `${yr}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
       for (const s of INVOICE_SECTORS) {
-        try {
-          const snap = await window._getDoc(window._doc(window._db, `progress_checks_${dateKey}`, s.id));
-          if (snap.exists()) {
-            const checks = snap.data().checks || {};
-            Object.keys(checks).forEach(k => {
-              if (k.endsWith('_반입') && (checks[k]===true||checks[k]===1)) newBanips[s.id]++;
-            });
-          }
-        } catch(e) {}
+        progPromises.push((async () => {
+          try {
+            const snap = await window._getDoc(window._doc(window._db, `progress_checks_${dateKey}`, s.id));
+            if (snap.exists()) {
+              const checks = snap.data().checks || {};
+              Object.keys(checks).forEach(k => {
+                if (k.endsWith('_반입') && (checks[k]===true||checks[k]===1)) newBanips[s.id]++;
+              });
+            }
+          } catch(e) {}
+        })());
       }
     }
-    // 공수 연동
+
+    // 공수 병렬 조회
+    const mdPromises = [];
     let totalMd = 0;
     for (let d = 1; d <= daysInMonth; d++) {
       const dateKey = `${yr}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-      try {
-        const snap = await window._getDoc(window._doc(window._db, 'worker_manday', dateKey));
-        if (snap.exists()) {
-          const md = snap.data().md || {};
-          totalMd += Object.values(md).reduce((a,b)=>a+b,0);
-        }
-      } catch(e) {}
+      mdPromises.push((async () => {
+        try {
+          const snap = await window._getDoc(window._doc(window._db, 'worker_manday', dateKey));
+          if (snap.exists()) {
+            const md = snap.data().md || {};
+            totalMd += Object.values(md).reduce((a,b)=>a+b,0);
+          }
+        } catch(e) {}
+      })());
     }
-    inv.manday = totalMd;
 
-    // 잔금 연동
-    for (const s of INVOICE_SECTORS) {
+    // 잔금 병렬 조회
+    const balPromises = INVOICE_SECTORS.map(async s => {
       try {
         const snap = await window._getDoc(window._doc(window._db, 'invoice_history', s.id));
         if (snap.exists()) {
@@ -911,7 +918,11 @@ window.invChangeMonth = async (month) => {
           inv.balances[s.id] = inv.estimates[s.id]||0;
         }
       } catch(e) { inv.balances[s.id] = inv.estimates[s.id]||0; }
-    }
+    });
+
+    // 모두 병렬 실행
+    await Promise.all([...progPromises, ...mdPromises, ...balPromises]);
+    inv.manday = totalMd;
   }
 
   inv.banips  = newBanips;
