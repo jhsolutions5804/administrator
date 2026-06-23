@@ -37,6 +37,15 @@
     { id:'mfr', name:'2F 제조부속실', qty:16,  devices: ['801','802','811','812','813','814','815','816','817','818','819','820','821','822','823','824'] },
   ];
 
+
+  // ── 과거 고정 데이터 (Firebase 이전 기록) ──
+  const PAST_PROGRESS_DAILY = {
+    '2026-06-17': { fiz: { '801_반입':true,'802_반입':true,'803_반입':true,'804_반입':true,'805_반입':true,'806_반입':true } },
+    '2026-06-18': { fiz: { '807_반입':true,'808_반입':true,'809_반입':true,'820_반입':true,'821_반입':true,'822_반입':true,'823_반입':true,'801_입고검사':true,'802_입고검사':true,'803_입고검사':true,'804_입고검사':true,'805_입고검사':true,'806_입고검사':true } },
+    '2026-06-19': { fiz: { '824_반입':true,'825_반입':true,'826_반입':true,'827_반입':true,'828_반입':true,'829_반입':true,'830_반입':true,'807_입고검사':true,'808_입고검사':true,'809_입고검사':true,'820_입고검사':true,'821_입고검사':true,'822_입고검사':true,'823_입고검사':true } },
+    '2026-06-20': { fiz: { '824_입고검사':true,'825_입고검사':true,'826_입고검사':true,'827_입고검사':true,'828_입고검사':true,'829_입고검사':true,'830_입고검사':true } },
+  };
+
   const INSTALL_CHECKS = ['내진스토퍼','다이크','실링','동판','결선'];
 
   function isInstallDone(checks, deviceId) {
@@ -117,6 +126,14 @@
         if (Object.keys(dayData).length > 0) allProgressData[dateKey] = dayData;
       })());
     }
+    // 과거 고정 데이터 병합
+    Object.entries(PAST_PROGRESS_DAILY).forEach(([dateKey, dayData]) => {
+      if (!allProgressData[dateKey]) allProgressData[dateKey] = {};
+      Object.entries(dayData).forEach(([sectorId, checks]) => {
+        if (!allProgressData[dateKey][sectorId]) allProgressData[dateKey][sectorId] = {};
+        Object.assign(allProgressData[dateKey][sectorId], checks);
+      });
+    });
     await Promise.all(promises);
     // 디버그 결과 화면에 표시
     const debugEl = document.getElementById('debug-log');
