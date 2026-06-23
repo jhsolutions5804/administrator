@@ -751,9 +751,9 @@ body { font-family:-apple-system,'Apple SD Gothic Neo','Pretendard',sans-serif; 
 
   <!-- 인사 탭바 -->
   <div id="tabbar-hr" class="tab-bar" style="display:none;">
-    <button class="tab-btn active" id="tb-roster"  onclick="switchTab(this,'tab-roster');renderRosterTab();">👥 근로자 명부</button>
-    <button class="tab-btn" id="tb-labor"          onclick="switchTab(this,'tab-labor');renderLaborTab();">📝 근로계약서</button>
-    <button class="tab-btn" id="tb-annual"         onclick="switchTab(this,'tab-annual');renderAnnualTab();">📋 연봉계약서</button>
+    <button class="tab-btn active" id="tb-roster"  onclick="switchTab(this,'tab-roster');renderRosterMain();">👥 근로자 명부</button>
+    <button class="tab-btn" id="tb-labor"          onclick="switchTab(this,'tab-labor');renderLaborMain();">📝 근로계약서</button>
+    <button class="tab-btn" id="tb-annual"         onclick="switchTab(this,'tab-annual');renderAnnualMain();">📋 연봉계약서</button>
     <button class="tab-btn" id="tb-payslip"        onclick="switchTab(this,'tab-payslip');renderPayslipTab();">💰 급여명세서</button>
   </div>
 
@@ -855,7 +855,7 @@ function enterSection(section) {
     document.getElementById('tb-roster').classList.add('active');
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     document.getElementById('tab-roster').classList.add('active');
-    renderRosterTab();
+    renderRosterMain();
   }
 }
 
@@ -2568,7 +2568,721 @@ window.rosterSaveEmpNo = async (id) => {
   if (!window._db) return;
   try {
     await window._setDoc(window._doc(window._db, 'workers', id), { empNo: newNo }, { merge: true });
-    renderRosterTab();
+    renderRosterMain();
   } catch(e) { alert('저장 오류: ' + e.message); }
 };
+</script>
+
+<script>
+// ════════════════════════════════
+// 공통 유틸
+// ════════════════════════════════
+const C2 = {
+  blue:'#1D5BA6', blueLt:'#E8F0FB', border:'#DDE4EF',
+  text:'#1A2540', sub:'#5C6F8A', mute:'#9AAABF',
+  green:'#16A34A', greenLt:'#DCFCE7',
+  red:'#DC2626', redLt:'#FEE2E2',
+  shadow:'0 1px 4px rgba(29,91,166,0.08)',
+};
+const fmtD2 = s => { if(!s)return '-'; const d=new Date(s); return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`; };
+const inp2Style = `style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:9px 12px;font-size:13px;color:#1A2540;background:#FAFCFF;box-sizing:border-box;"`;
+const card2 = (title, body) => `<div style="background:#fff;border-radius:12px;border:1px solid #DDE4EF;padding:16px;margin-bottom:10px;box-shadow:${C2.shadow}"><div style="font-size:12px;font-weight:700;color:${C2.blue};margin-bottom:12px;">${title}</div>${body}</div>`;
+const field2 = (label, input) => `<div style="margin-bottom:10px;"><div style="font-size:11px;font-weight:700;color:#5C6F8A;margin-bottom:5px;">${label}</div>${input}</div>`;
+const backBtn2 = (fn, label='뒤로') => `<button onclick="${fn}" style="background:#E8F0FB;border:1px solid #DDE4EF;border-radius:8px;padding:5px 12px;color:#1D5BA6;font-size:12px;cursor:pointer;font-weight:600;">‹ ${label}</button>`;
+const selectMain = (icon, label, fn, desc) => `
+  <button onclick="${fn}" style="background:#fff;border:1px solid #DDE4EF;border-radius:14px;padding:18px 20px;text-align:left;cursor:pointer;box-shadow:${C2.shadow};display:flex;align-items:center;gap:16px;width:100%;">
+    <div style="width:48px;height:48px;background:${icon.includes('📂')?C2.greenLt:C2.blueLt};border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;">${icon}</div>
+    <div style="flex:1;"><div style="font-size:16px;font-weight:800;color:${C2.text};margin-bottom:3px;">${label}</div><div style="font-size:12px;color:${C2.sub};">${desc}</div></div>
+    <div style="font-size:20px;color:${C2.mute};">›</div>
+  </button>`;
+const wrap2 = (body) => `<div style="padding:16px;max-width:520px;margin:0 auto;">${body}</div>`;
+
+async function getWorkersList() {
+  if (!window._db) return [];
+  try {
+    const { getDocs, collection } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const snap = await getDocs(collection(window._db, 'workers'));
+    const docs = [];
+    snap.forEach(d => docs.push({id:d.id, ...d.data()}));
+    return docs.sort((a,b)=>(a.name||'').localeCompare(b.name||'','ko'));
+  } catch(e) { return []; }
+}
+
+// ════════════════════════════════
+// 👥 근로자 명부
+// ════════════════════════════════
+let rosterView = 'main'; // main | register | list
+let rosterForm = { name:'', jumin:'', phone:'', address:'', dept:'', rank:'', job:'' };
+
+window.renderRosterMain = () => {
+  const el = document.getElementById('tab-roster');
+  if (!el) return;
+  rosterView = 'main';
+  el.innerHTML = wrap2(`
+    <div style="font-size:13px;color:#5C6F8A;margin-bottom:16px;font-weight:600;">작업을 선택해 주세요</div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      ${selectMain('✏️','등록','renderRosterRegister()','근로자 기본 정보 신규 등록')}
+      ${selectMain('📂','조회','renderRosterList()','등록된 근로자 전체 조회 및 관리')}
+    </div>`);
+};
+
+window.renderRosterRegister = () => {
+  const el = document.getElementById('tab-roster');
+  rosterForm = { name:'', jumin:'', phone:'', address:'', dept:'', rank:'', job:'' };
+  el.innerHTML = wrap2(`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+      ${backBtn2('renderRosterMain()')}
+      <span style="font-size:13px;font-weight:700;color:${C2.text};">근로자 등록</span>
+    </div>
+    ${card2('👤 기본 정보', `
+      ${field2('이름', `<input type="text" placeholder="성명 입력" oninput="rosterForm.name=this.value" ${inp2Style}>`)}
+      ${field2('주민등록번호', `<input type="text" placeholder="000000-0000000" maxlength="14" oninput="rosterForm.jumin=fmtJumin2(this.value);this.value=rosterForm.jumin;" ${inp2Style}>`)}
+      ${field2('휴대폰번호', `<input type="text" placeholder="010-0000-0000" oninput="rosterForm.phone=this.value" ${inp2Style}>`)}
+      ${field2('주소', `<input type="text" placeholder="주소 입력" oninput="rosterForm.address=this.value" ${inp2Style}>`)}
+    `)}
+    ${card2('💼 소속 및 업무', `
+      ${field2('소속', `<select onchange="rosterForm.dept=this.value" style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:9px 12px;font-size:13px;color:#1A2540;background:#FAFCFF;cursor:pointer;">
+        <option value="">선택하세요</option>
+        ${['사업본부','현장관리팀','인력배치팀','경영지원본부','경영총무팀','영업기획팀'].map(d=>`<option value="${d}">${d}</option>`).join('')}
+      </select>`)}
+      ${field2('직급', `<select onchange="rosterForm.rank=this.value" style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:9px 12px;font-size:13px;color:#1A2540;background:#FAFCFF;cursor:pointer;">
+        <option value="">선택하세요</option>
+        ${['과장','대리','사원'].map(r=>`<option value="${r}">${r}</option>`).join('')}
+      </select>`)}
+      ${field2('담당업무', `<input type="text" placeholder="담당 업무 입력" oninput="rosterForm.job=this.value" ${inp2Style}>`)}
+    `)}
+    <button onclick="rosterSave()" style="width:100%;padding:13px;background:${C2.green};border:none;border-radius:12px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;">✅ 등록 완료</button>
+  `);
+};
+
+window.fmtJumin2 = v => { const d=v.replace(/-/g,'').replace(/\D/g,''); return d.length<=6?d:d.slice(0,6)+'-'+d.slice(6,13); };
+
+window.rosterSave = async () => {
+  if (!rosterForm.name||!rosterForm.jumin) { alert('이름과 주민등록번호는 필수입니다.'); return; }
+  if (!window._db) { alert('Firebase 연결 필요'); return; }
+  try {
+    const { getDocs, collection, setDoc, doc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const wid = `${rosterForm.name}_${rosterForm.jumin.replace(/-/g,'')}`;
+    const snap = await getDocs(collection(window._db, 'workers'));
+    const nums = []; snap.forEach(d=>{const n=parseInt(d.data().empNo||'0');if(n)nums.push(n);});
+    const nextNo = String((nums.length?Math.max(...nums):0)+1).padStart(3,'0');
+    await setDoc(doc(window._db,'workers',wid), { ...rosterForm, empNo:nextNo, registeredAt:new Date().toISOString() });
+    alert(`✅ 등록 완료! 사원번호: ${nextNo}`);
+    renderRosterMain();
+  } catch(e) { alert('오류: '+e.message); }
+};
+
+window.renderRosterList = async () => {
+  const el = document.getElementById('tab-roster');
+  el.innerHTML = wrap2(`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+      ${backBtn2('renderRosterMain()')}
+      <span style="font-size:12px;color:${C2.sub};font-weight:600;">근로자 명부</span>
+    </div>
+    <div id="roster-list-loading" style="text-align:center;padding:32px;color:${C2.mute};">⏳ 불러오는 중...</div>
+    <div id="roster-list-wrap"></div>
+  `);
+
+  if (!window._db) { setTimeout(renderRosterList,500); return; }
+  try {
+    const { getDocs, collection, doc, deleteDoc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const snap = await getDocs(collection(window._db,'workers'));
+    const docs = []; snap.forEach(d=>docs.push({id:d.id,...d.data()}));
+    docs.sort((a,b)=>{
+      if(a.dept!==b.dept)return(a.dept||'').localeCompare(b.dept||'','ko');
+      if(a.empNo!==b.empNo)return(a.empNo||'').localeCompare(b.empNo||'');
+      return(a.rank||'').localeCompare(b.rank||'','ko');
+    });
+    window._rosterDocs2 = docs;
+
+    // 각 근로자의 계약 만료일 조회
+    const contractInfo = {};
+    for (const d of docs) {
+      try {
+        const lSnap = await getDocs(collection(window._db,`labor_contracts/${d.id}/contracts`));
+        let lLatest=''; lSnap.forEach(c=>{ const ed=c.data().endDate||''; if(ed>lLatest)lLatest=ed; });
+        const aSnap = await getDocs(collection(window._db,`annual_contracts/${d.id}/contracts`));
+        let aLatest=''; aSnap.forEach(c=>{ const ed=c.data().endDate||''; if(ed>aLatest)aLatest=ed; });
+        contractInfo[d.id] = { labor:lLatest, annual:aLatest, laborCnt:lSnap.size, annualCnt:aSnap.size };
+      } catch(e) { contractInfo[d.id]={labor:'',annual:'',laborCnt:0,annualCnt:0}; }
+    }
+
+    document.getElementById('roster-list-loading').style.display='none';
+    if (!docs.length) {
+      document.getElementById('roster-list-wrap').innerHTML='<div style="text-align:center;padding:40px;color:'+C2.mute+';">등록된 근로자가 없습니다.</div>';
+      return;
+    }
+
+    const rows = docs.map((d,i)=>{
+      const birth=(d.jumin||'').slice(0,6);
+      const bf=birth.length===6?`${birth.slice(0,2)}.${birth.slice(2,4)}.${birth.slice(4,6)}`:'-';
+      const ci=contractInfo[d.id]||{};
+      const now=new Date().toISOString().slice(0,10);
+      const lExp=ci.labor?ci.labor:null;
+      const aExp=ci.annual?ci.annual:null;
+      const lColor=lExp?(lExp<now?C2.red:C2.green):C2.mute;
+      const aColor=aExp?(aExp<now?C2.red:C2.green):C2.mute;
+      return `
+        <div style="background:${i%2===0?'#fff':'#F8FAFD'};border-bottom:1px solid #F0F4FA;padding:10px 12px;">
+          <div style="display:grid;grid-template-columns:0.5fr 1fr 0.8fr 0.5fr 0.7fr 0.9fr;gap:6px;align-items:center;margin-bottom:6px;">
+            <div>
+              <span id="eno-d-${d.id}" style="font-size:12px;font-weight:700;color:${C2.blue};cursor:pointer;text-decoration:underline;" onclick="rosterEmpNoEdit('${d.id}','${d.empNo||''}')">
+                ${d.empNo||'-'}
+              </span>
+              <div id="eno-e-${d.id}" style="display:none;flex;gap:2px;">
+                <input id="eno-i-${d.id}" value="${d.empNo||''}" style="width:35px;border:1px solid ${C2.blue};border-radius:4px;padding:2px 3px;font-size:10px;text-align:center;"/>
+                <button onclick="rosterEmpNoSave('${d.id}')" style="background:${C2.blue};border:none;border-radius:3px;color:#fff;font-size:9px;padding:2px 4px;cursor:pointer;">✓</button>
+              </div>
+            </div>
+            <div style="font-size:11px;color:${C2.text};">${d.dept||'-'}</div>
+            <div style="font-size:12px;font-weight:600;color:${C2.text};">${d.name||'-'}</div>
+            <div style="font-size:11px;color:${C2.sub};">${d.rank||'-'}</div>
+            <div style="font-size:10px;color:${C2.sub};">${bf}</div>
+            <div style="font-size:10px;color:${C2.sub};">${d.phone||'-'}</div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+            <span style="font-size:10px;background:${lExp?'#E8F0FB':'#F8FAFD'};color:${lColor};border:1px solid ${lExp?'#DDE4EF':'#EEE'};padding:2px 8px;border-radius:8px;font-weight:600;">
+              📝 근로계약 ${lExp?fmtD2(lExp)+' 만료':ci.laborCnt?'확인필요':'미작성'}
+            </span>
+            <span style="font-size:10px;background:${aExp?'#E8F0FB':'#F8FAFD'};color:${aColor};border:1px solid ${aExp?'#DDE4EF':'#EEE'};padding:2px 8px;border-radius:8px;font-weight:600;">
+              📋 연봉계약 ${aExp?fmtD2(aExp)+' 만료':ci.annualCnt?'확인필요':'미작성'}
+            </span>
+            <button onclick="rosterDelete('${d.id}','${d.name}')"
+              style="margin-left:auto;font-size:10px;background:${C2.redLt};color:${C2.red};border:1px solid #fca5a5;padding:2px 8px;border-radius:8px;cursor:pointer;font-weight:600;">
+              🗑 삭제
+            </button>
+          </div>
+        </div>`;
+    }).join('');
+
+    document.getElementById('roster-list-wrap').innerHTML=`
+      <div style="background:#fff;border-radius:12px;border:1px solid #DDE4EF;overflow:hidden;box-shadow:${C2.shadow};">
+        <div style="display:grid;grid-template-columns:0.5fr 1fr 0.8fr 0.5fr 0.7fr 0.9fr;background:#E8F0FB;padding:9px 12px;gap:6px;">
+          ${['사원번호','소속','이름','직급','생년월일','휴대폰'].map(h=>`<div style="font-size:10px;font-weight:700;color:${C2.blue};">${h}</div>`).join('')}
+        </div>
+        ${rows}
+      </div>
+      <div style="font-size:11px;color:${C2.mute};margin-top:6px;">💡 사원번호 클릭 수정 / 🔴 만료 🟢 유효</div>`;
+  } catch(e) { document.getElementById('roster-list-loading').innerHTML=`<div style="color:${C2.red};">오류: ${e.message}</div>`; }
+};
+
+window.rosterEmpNoEdit = (id,cur) => {
+  document.getElementById(`eno-d-${id}`).style.display='none';
+  document.getElementById(`eno-e-${id}`).style.display='flex';
+};
+window.rosterEmpNoSave = async (id) => {
+  const v=document.getElementById(`eno-i-${id}`).value.trim();
+  if(!v)return;
+  const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+  await setDoc(doc(window._db,'workers',id),{empNo:v},{merge:true});
+  renderRosterList();
+};
+window.rosterDelete = async (id, name) => {
+  if(!confirm(`${name}님을 명부에서 삭제하시겠습니까?\n(계약서 데이터는 유지됩니다.)`))return;
+  const { doc, deleteDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+  await deleteDoc(doc(window._db,'workers',id));
+  renderRosterList();
+};
+
+// ════════════════════════════════
+// 📝 근로계약서 (재구성)
+// ════════════════════════════════
+let laborView2 = 'main';
+let laborForm2 = { workerId:'', name:'', jumin:'', phone:'', address:'', dept:'', rank:'', job:'', startDate:'', endDate:'', contractDate:'', salary:'', signData:null };
+let laborSelectedWorker2 = null;
+let laborSignCanvas2 = null, laborSignDrawing2 = false;
+
+window.renderLaborMain = () => {
+  const el = document.getElementById('tab-labor');
+  if(!el)return;
+  laborView2='main';
+  el.innerHTML = wrap2(`
+    <div style="font-size:13px;color:${C2.sub};margin-bottom:16px;font-weight:600;">작업을 선택해 주세요</div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      ${selectMain('✏️','등록','renderLaborRegister()','근로자 명부에서 선택하여 근로계약서 작성')}
+      ${selectMain('📂','조회','renderLaborList2()','저장된 근로계약서 조회 및 관리')}
+    </div>`);
+};
+
+window.renderLaborRegister = async () => {
+  const el = document.getElementById('tab-labor');
+  laborForm2 = { workerId:'', name:'', jumin:'', phone:'', address:'', dept:'', rank:'', job:'', startDate:'', endDate:'', contractDate:'', salary:'', signData:null };
+  const workers = await getWorkersList();
+  window._laborWorkers2 = workers;
+
+  const renderForm = () => {
+    const sal = laborForm2.salary ? `<div style="font-size:12px;color:${C2.blue};margin-top:4px;font-weight:600;">→ 금 ${Number(laborForm2.salary).toLocaleString()}원</div>` : '';
+    el.innerHTML = wrap2(`
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+        ${backBtn2('renderLaborMain()')}
+        <span style="font-size:13px;font-weight:700;color:${C2.text};">근로계약서 작성</span>
+      </div>
+      ${card2('👤 근로자 선택', `
+        <select onchange="laborWorkerSelect2(this.value)" style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:10px 12px;font-size:13px;font-weight:600;color:${C2.blue};background:#E8F0FB;cursor:pointer;">
+          <option value="">근로자를 선택하세요</option>
+          ${workers.map(w=>`<option value="${w.id}" ${laborForm2.workerId===w.id?'selected':''}>${w.empNo||'-'} · ${w.name} (${w.rank||''})</option>`).join('')}
+        </select>
+        ${laborForm2.name?`<div style="margin-top:10px;background:#F8FAFD;border-radius:8px;overflow:hidden;">
+          ${[['이름',laborForm2.name],['소속',laborForm2.dept||'-'],['직급',laborForm2.rank||'-'],['주소',laborForm2.address||'-']].map(([l,v])=>`
+            <div style="display:flex;padding:7px 12px;border-bottom:1px solid #F0F4FA;font-size:12px;">
+              <span style="color:${C2.sub};min-width:60px;font-weight:600;">${l}</span>
+              <span style="color:${C2.text};">${v}</span>
+            </div>`).join('')}
+        </div>`:''}
+      `)}
+      ${laborForm2.name ? `
+      ${card2('📅 계약 기간', `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+          ${field2('시작일',`<input type="date" value="${laborForm2.startDate}" onchange="laborForm2.startDate=this.value" style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:9px 8px;font-size:12px;box-sizing:border-box;">`)}
+          ${field2('종료일',`<input type="date" value="${laborForm2.endDate}" onchange="laborForm2.endDate=this.value" style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:9px 8px;font-size:12px;box-sizing:border-box;">`)}
+        </div>
+        ${field2('계약 체결일',`<input type="date" value="${laborForm2.contractDate}" onchange="laborForm2.contractDate=this.value" ${inp2Style}>`)}
+      `)}
+      ${card2('💼 담당 업무', field2('담당업무',`<input type="text" value="${laborForm2.job}" placeholder="담당 업무 입력" oninput="laborForm2.job=this.value" ${inp2Style}>`))}
+      ${card2('💰 임금', `
+        ${field2('계약 연봉 (원)',`<input type="number" value="${laborForm2.salary}" placeholder="숫자만 입력" oninput="laborForm2.salary=this.value" ${inp2Style}>${sal}`)}
+      `)}
+      ${card2('✍️ 근로자 서명', `
+        <div style="text-align:center;">
+          ${laborForm2.signData
+            ?`<img src="${laborForm2.signData}" style="width:160px;height:60px;object-fit:contain;border:1px solid #DDE4EF;border-radius:8px;"/><br/>
+              <button onclick="laborForm2.signData=null;laborRefreshForm2();" style="font-size:11px;color:${C2.mute};background:none;border:none;cursor:pointer;text-decoration:underline;">지우기</button>`
+            :`<button onclick="laborOpenSign2();" style="padding:10px 24px;background:#E8F0FB;border:2px dashed #1D5BA6;border-radius:10px;color:#1D5BA6;font-size:13px;font-weight:600;cursor:pointer;">✍️ 서명하기</button>`}
+        </div>
+      `)}
+      <div style="display:flex;gap:8px;">
+        <button onclick="laborPreview2();" style="flex:1;padding:13px;background:${C2.sub};border:none;border-radius:12px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">📄 미리보기</button>
+        <button onclick="laborSave2();" style="flex:1;padding:13px;background:${C2.green};border:none;border-radius:12px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">✅ 확정 저장</button>
+      </div>
+      <!-- 서명 팝업 -->
+      <div id="labor-sign2-popup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
+        <div style="background:#fff;border-radius:16px;padding:24px;width:320px;text-align:center;">
+          <div style="font-size:14px;font-weight:700;color:${C2.text};margin-bottom:16px;">✍️ 서명</div>
+          <div style="position:relative;border:1px solid #DDE4EF;border-radius:8px;overflow:hidden;background:#FAFCFF;margin-bottom:12px;">
+            <canvas id="labor-sign2-canvas" width="272" height="100" style="display:block;cursor:crosshair;touch-action:none;"></canvas>
+            <div id="labor-sign2-hint" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;">
+              <span style="font-size:12px;color:${C2.mute};">손가락으로 서명하세요</span>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button onclick="laborClearSign2()" style="flex:1;padding:10px;background:#F8FAFD;border:1px solid #DDE4EF;border-radius:8px;font-size:13px;cursor:pointer;color:${C2.sub};">지우기</button>
+            <button onclick="laborCancelSign2()" style="flex:1;padding:10px;background:#F8FAFD;border:1px solid #DDE4EF;border-radius:8px;font-size:13px;cursor:pointer;color:${C2.sub};">취소</button>
+            <button onclick="laborSaveSign2()" style="flex:1;padding:10px;background:${C2.blue};border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;color:#fff;">확인</button>
+          </div>
+        </div>
+      </div>` : ''}
+    `);
+    setTimeout(()=>{ const p=document.getElementById('labor-sign2-popup'); if(p)p.style.display='none'; },50);
+  };
+
+  window.laborRefreshForm2 = renderForm;
+  window.laborWorkerSelect2 = (wid) => {
+    const w=(window._laborWorkers2||[]).find(x=>x.id===wid);
+    if(!w)return;
+    laborForm2.workerId=wid; laborForm2.name=w.name||''; laborForm2.jumin=w.jumin||'';
+    laborForm2.phone=w.phone||''; laborForm2.address=w.address||'';
+    laborForm2.dept=w.dept||''; laborForm2.rank=w.rank||''; laborForm2.job=w.job||'';
+    renderForm();
+  };
+  renderForm();
+};
+
+window.laborOpenSign2 = () => {
+  const p=document.getElementById('labor-sign2-popup'); if(!p)return; p.style.display='flex';
+  setTimeout(()=>{
+    laborSignCanvas2=document.getElementById('labor-sign2-canvas'); if(!laborSignCanvas2)return;
+    const ctx=laborSignCanvas2.getContext('2d'); ctx.clearRect(0,0,laborSignCanvas2.width,laborSignCanvas2.height);
+    const hint=document.getElementById('labor-sign2-hint');
+    const gp=e=>{const r=laborSignCanvas2.getBoundingClientRect();const t=e.touches?.[0]||e;return{x:(t.clientX-r.left)*(laborSignCanvas2.width/r.width),y:(t.clientY-r.top)*(laborSignCanvas2.height/r.height)};};
+    laborSignCanvas2.onmousedown=e=>{laborSignDrawing2=true;const p=gp(e);ctx.beginPath();ctx.moveTo(p.x,p.y);};
+    laborSignCanvas2.onmousemove=e=>{if(!laborSignDrawing2)return;ctx.lineWidth=2.5;ctx.lineCap='round';ctx.strokeStyle='#1A2540';const p=gp(e);ctx.lineTo(p.x,p.y);ctx.stroke();if(hint)hint.style.display='none';};
+    laborSignCanvas2.onmouseup=()=>laborSignDrawing2=false;
+    laborSignCanvas2.onmouseleave=()=>laborSignDrawing2=false;
+    laborSignCanvas2.addEventListener('touchstart',e=>{e.preventDefault();laborSignDrawing2=true;const p=gp(e);ctx.beginPath();ctx.moveTo(p.x,p.y);},{passive:false});
+    laborSignCanvas2.addEventListener('touchmove',e=>{e.preventDefault();if(!laborSignDrawing2)return;ctx.lineWidth=2.5;ctx.lineCap='round';ctx.strokeStyle='#1A2540';const p=gp(e);ctx.lineTo(p.x,p.y);ctx.stroke();if(hint)hint.style.display='none';},{passive:false});
+    laborSignCanvas2.addEventListener('touchend',e=>{e.preventDefault();laborSignDrawing2=false;},{passive:false});
+  },100);
+};
+window.laborClearSign2=()=>{if(laborSignCanvas2){laborSignCanvas2.getContext('2d').clearRect(0,0,272,100);const h=document.getElementById('labor-sign2-hint');if(h)h.style.display='flex';}};
+window.laborCancelSign2=()=>{const p=document.getElementById('labor-sign2-popup');if(p)p.style.display='none';};
+window.laborSaveSign2=()=>{if(laborSignCanvas2)laborForm2.signData=laborSignCanvas2.toDataURL();const p=document.getElementById('labor-sign2-popup');if(p)p.style.display='none';if(window.laborRefreshForm2)window.laborRefreshForm2();};
+
+window.laborSave2 = async () => {
+  if(!laborForm2.workerId||!laborForm2.contractDate){alert('근로자와 계약일자는 필수입니다.');return;}
+  if(!window._db){alert('Firebase 연결 필요');return;}
+  if(!confirm(`${laborForm2.name}님의 근로계약서를 저장하시겠습니까?`))return;
+  try {
+    const { doc, setDoc, collection } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const contractId = laborForm2.contractDate.replace(/-/g,'');
+    await setDoc(doc(window._db,`labor_contracts/${laborForm2.workerId}/contracts`,contractId), {
+      ...laborForm2, savedAt:new Date().toISOString(), savedBy:'admin'
+    });
+    alert('✅ 근로계약서 저장 완료!');
+    renderLaborMain();
+  } catch(e){alert('오류: '+e.message);}
+};
+
+window.laborPreview2 = () => {
+  const f=laborForm2;
+  const fmtDp=s=>{if(!s)return'____년 __월 __일';const d=new Date(s);return`${d.getFullYear()}년 ${String(d.getMonth()+1).padStart(2,'0')}월 ${String(d.getDate()).padStart(2,'0')}일`;};
+  const ul=(v,w)=>`<span style="display:inline-block;min-width:${w||80}px;border-bottom:1px solid #333;text-align:center;padding:0 2px;">${v||''}</span>`;
+  const signImg=f.signData?`<img src="${f.signData}" style="width:100px;height:40px;object-fit:contain;opacity:0.9;vertical-align:middle;"/>`:`<span style="display:inline-block;width:100px;height:40px;border:1px dashed #ccc;vertical-align:middle;"></span>`;
+  const win=window.open('','_blank');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>근로계약서 - ${f.name}</title>
+    <style>body{margin:0;font-family:'Malgun Gothic',Arial,sans-serif;background:#888;display:flex;flex-direction:column;align-items:center;padding:20px;}.a4{width:210mm;min-height:297mm;background:#fff;padding:20mm 22mm;box-shadow:0 4px 24px rgba(0,0,0,.2);font-size:10pt;line-height:1.9;color:#1A2540;}@media print{body{background:#fff;padding:0;}.toolbar{display:none;}.a4{box-shadow:none;padding:15mm 20mm;width:100%;}}</style>
+    </head><body>
+    <div class="toolbar" style="margin-bottom:12px;display:flex;gap:8px;">
+      <button onclick="window.close()" style="padding:8px 16px;background:#fff;border:1px solid #DDE4EF;border-radius:8px;cursor:pointer;">← 닫기</button>
+      <button onclick="window.print()" style="padding:8px 16px;background:#1D5BA6;border:none;border-radius:8px;color:#fff;font-weight:700;cursor:pointer;">🖨 인쇄/PDF</button>
+    </div>
+    <div class="a4">
+      <div style="text-align:center;margin-bottom:28px;"><div style="font-size:20pt;font-weight:800;letter-spacing:6px;">근 로 계 약 서</div><div style="width:60px;height:2px;background:#333;margin:8px auto 0;"></div></div>
+      <p style="margin-bottom:12px;">제이에이치솔루션 (이하"갑"이라 한다.)과 근로자 ${ul(f.name,80)} (이하 "을"이라 한다.)는 근로자보호 등에 관한 법률에 의거 다음과 같이 PJT 계약직 근로계약을 체결한다.</p>
+      <p style="font-weight:700;margin:14px 0 5px;">제1조 【의 무】</p><p style="margin-bottom:8px;">"을"은 "갑"의 정규직원으로서 "갑"의 사규에 따른 제규정 및 취업규칙에 정해진 근로조건을 승인하고 근로를 성실히 이행할 의무를 진다.</p>
+      <p style="font-weight:700;margin:14px 0 5px;">제2조 【근로기간】</p><p style="margin-bottom:4px;">1. 근로계약기간 : ${fmtDp(f.startDate)} ~ ${fmtDp(f.endDate)}</p><p style="margin-bottom:8px;">2. PJT계약근로기간이 만료되고 계속 근무의 필요가 있을 때에는 당사자간의 합의 하에 재계약 할 수 있다.</p>
+      <p style="font-weight:700;margin:14px 0 5px;">제3조 【근무장소 및 대상업무】</p><p style="margin-bottom:4px;">1. "을"은 "갑"이 제공하는 근무장소에서 근무하며, "을"은 이에 따른다.</p><p style="margin-bottom:4px;">&nbsp;&nbsp;1) 소속 : ${ul(f.dept,180)} &nbsp; 직급 : ${ul(f.rank,60)}</p><p style="margin-bottom:8px;">&nbsp;&nbsp;2) 담당 업무 : ${ul(f.job,160)}</p>
+      <p style="font-weight:700;margin:14px 0 5px;">제4조 【임 금】</p><p style="margin-bottom:4px;">- 계약연봉 : ${f.salary?`일금 ${Number(f.salary).toLocaleString()}원`:ul('',180)}</p><p style="margin-bottom:4px;">- 세부 지급 사항은 연봉계약서를 기준으로 한다. 임금 지급일 : 익월 말일</p>
+      <p style="font-weight:700;margin:14px 0 5px;">제5조 【사회보험】</p><p style="margin-bottom:8px;">☑ 고용보험 &nbsp; ☑ 산재보험 &nbsp; ☑ 국민연금 &nbsp; ☑ 건강보험</p>
+      <div style="text-align:center;color:#888;font-size:10pt;margin:14px 0;border-top:1px dashed #ccc;border-bottom:1px dashed #ccc;padding:6px 0;">제6조 ~ 제21조 (근로시간, 퇴직금, 휴가, 손해배상, 비밀유지 등 표준 조항)</div>
+      <p style="font-weight:600;margin:20px 0 16px;">계약일자 : ${fmtDp(f.contractDate)}</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:16px;">
+        <div style="border-top:1px solid #333;padding-top:12px;"><p style="font-weight:700;margin-bottom:6px;">(갑)</p><p>사업체명 : 제이에이치솔루션</p><p>대&nbsp;&nbsp;&nbsp;&nbsp;표 : 김 종 화 (인)</p><p>사업자번호 : 383-09-02847</p></div>
+        <div style="border-top:1px solid #333;padding-top:12px;"><p style="font-weight:700;margin-bottom:6px;">(을)</p><p>주&nbsp;&nbsp;소 : ${ul(f.address,140)}</p><p>이&nbsp;&nbsp;름 : ${ul(f.name,80)}</p><p>주민등록번호 : ${ul(f.jumin,110)}</p><div style="margin-top:8px;display:flex;align-items:center;gap:8px;"><span>(인)</span>${signImg}</div></div>
+      </div>
+    </div></body></html>`);
+  win.document.close();
+};
+
+// 근로계약서 조회
+window.renderLaborList2 = async () => {
+  const el=document.getElementById('tab-labor');
+  el.innerHTML=wrap2(`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+      ${backBtn2('renderLaborMain()')}
+      <span style="font-size:12px;color:${C2.sub};font-weight:600;">근로계약서 조회</span>
+    </div>
+    <div id="labor-list2-loading" style="text-align:center;padding:32px;color:${C2.mute};">⏳ 불러오는 중...</div>
+    <div id="labor-list2-wrap"></div>
+  `);
+  const workers=await getWorkersList();
+  document.getElementById('labor-list2-loading').style.display='none';
+  if(!workers.length){document.getElementById('labor-list2-wrap').innerHTML='<div style="text-align:center;padding:40px;color:'+C2.mute+';">등록된 근로자가 없습니다.</div>';return;}
+  document.getElementById('labor-list2-wrap').innerHTML=`
+    <div style="background:#fff;border-radius:12px;border:1px solid #DDE4EF;overflow:hidden;box-shadow:${C2.shadow};">
+      <div style="display:grid;grid-template-columns:0.6fr 1fr 0.7fr 0.6fr;background:#E8F0FB;padding:9px 12px;gap:6px;">
+        ${['사원번호','이름','소속','직급'].map(h=>`<div style="font-size:10px;font-weight:700;color:${C2.blue};">${h}</div>`).join('')}
+      </div>
+      ${workers.map((w,i)=>`
+        <button onclick="laborViewWorker2('${w.id}','${w.name}')"
+          style="width:100%;display:grid;grid-template-columns:0.6fr 1fr 0.7fr 0.6fr;padding:11px 12px;gap:6px;
+            background:${i%2===0?'#fff':'#F8FAFD'};border:none;border-bottom:1px solid #F0F4FA;cursor:pointer;text-align:left;align-items:center;">
+          <div style="font-size:12px;font-weight:700;color:${C2.blue};">${w.empNo||'-'}</div>
+          <div style="font-size:13px;font-weight:600;color:${C2.text};">${w.name}</div>
+          <div style="font-size:11px;color:${C2.sub};">${w.dept||'-'}</div>
+          <div style="font-size:11px;color:${C2.sub};">${w.rank||'-'}</div>
+        </button>`).join('')}
+    </div>`;
+};
+
+window.laborViewWorker2 = async (wid, wname) => {
+  const el=document.getElementById('tab-labor');
+  el.innerHTML=wrap2(`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+      ${backBtn2('renderLaborList2()','목록')}
+      <span style="font-size:13px;font-weight:700;color:${C2.text};">${wname} · 근로계약서</span>
+    </div>
+    <div id="labor-contracts-loading" style="text-align:center;padding:32px;color:${C2.mute};">⏳ 불러오는 중...</div>
+    <div id="labor-contracts-wrap"></div>
+  `);
+  try {
+    const { getDocs, collection, doc, deleteDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const snap=await getDocs(collection(window._db,`labor_contracts/${wid}/contracts`));
+    const docs=[]; snap.forEach(d=>docs.push({id:d.id,...d.data()}));
+    docs.sort((a,b)=>(b.contractDate||b.id).localeCompare(a.contractDate||a.id));
+    document.getElementById('labor-contracts-loading').style.display='none';
+    if(!docs.length){document.getElementById('labor-contracts-wrap').innerHTML='<div style="text-align:center;padding:32px;color:'+C2.mute+';">근로계약서가 없습니다.</div>';return;}
+    document.getElementById('labor-contracts-wrap').innerHTML=docs.map((d,i)=>`
+      <div style="background:#fff;border-radius:12px;border:1px solid #DDE4EF;padding:14px;margin-bottom:8px;box-shadow:${C2.shadow};">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <span style="font-size:13px;font-weight:700;color:${C2.blue};">계약일: ${fmtD2(d.contractDate)}</span>
+          <span style="font-size:10px;background:${C2.greenLt};color:${C2.green};padding:2px 8px;border-radius:8px;font-weight:700;">✅ 저장됨</span>
+        </div>
+        <div style="font-size:12px;color:${C2.sub};margin-bottom:4px;">계약기간: ${fmtD2(d.startDate)} ~ ${fmtD2(d.endDate)}</div>
+        <div style="font-size:12px;color:${C2.sub};margin-bottom:10px;">연봉: ${d.salary?'₩'+Number(d.salary).toLocaleString():'-'}</div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="laborPreviewSaved2(${JSON.stringify(d).replace(/"/g,'&quot;')})"
+            style="flex:1;padding:8px;background:#E8F0FB;border:1px solid #DDE4EF;border-radius:8px;font-size:12px;font-weight:600;color:${C2.blue};cursor:pointer;">📄 PDF 출력</button>
+          <button onclick="laborDeleteContract2('${wid}','${d.id}','${wname}')"
+            style="padding:8px 12px;background:${C2.redLt};border:1px solid #fca5a5;border-radius:8px;font-size:12px;font-weight:600;color:${C2.red};cursor:pointer;">🗑 삭제</button>
+        </div>
+      </div>`).join('');
+  } catch(e){document.getElementById('labor-contracts-loading').innerHTML=`<div style="color:${C2.red};">오류: ${e.message}</div>`;}
+};
+
+window.laborDeleteContract2 = async (wid, cid, wname) => {
+  if(!confirm(`${wname}님의 계약서(${cid})를 삭제하시겠습니까?`))return;
+  const { doc, deleteDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+  await deleteDoc(doc(window._db,`labor_contracts/${wid}/contracts`,cid));
+  laborViewWorker2(wid, wname);
+};
+
+window.laborPreviewSaved2 = (d) => {
+  laborForm2 = {...d};
+  laborPreview2();
+};
+
+// ════════════════════════════════
+// 📋 연봉계약서 (재구성)
+// ════════════════════════════════
+let annualView2='main';
+let annualForm2={workerId:'',name:'',jumin:'',address:'',dept:'',rank:'',startDate:'2026-06-02',endDate:'2027-05-31',contractDate:'',salary:'',signData:null};
+let annualSignCanvas2=null, annualSignDrawing2=false;
+
+window.renderAnnualMain = () => {
+  const el=document.getElementById('tab-annual');
+  if(!el)return;
+  annualView2='main';
+  el.innerHTML=wrap2(`
+    <div style="font-size:13px;color:${C2.sub};margin-bottom:16px;font-weight:600;">작업을 선택해 주세요</div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      ${selectMain('✏️','등록','renderAnnualRegister()','근로자 명부에서 선택하여 연봉계약서 작성')}
+      ${selectMain('📂','조회','renderAnnualList2()','저장된 연봉계약서 조회 및 관리')}
+    </div>`);
+};
+
+window.renderAnnualRegister = async () => {
+  const el=document.getElementById('tab-annual');
+  annualForm2={workerId:'',name:'',jumin:'',address:'',dept:'',rank:'',startDate:'2026-06-02',endDate:'2027-05-31',contractDate:'',salary:'',signData:null};
+  const workers=await getWorkersList();
+  window._annualWorkers2=workers;
+
+  const renderAForm=()=>{
+    const sal=calcAnnualSalary(Number(annualForm2.salary));
+    const salPreview=annualForm2.salary?`
+      <div style="margin-top:8px;background:#E8F0FB;border-radius:8px;overflow:hidden;">
+        ${[['월 기본급 (연봉÷12)',sal.basic],['고정연장수당',sal.fixedOt],['고정야간수당',sal.fixedNight],['월 합계',sal.total]]
+          .map(([l,v])=>`<div style="display:flex;justify-content:space-between;padding:6px 12px;border-bottom:1px solid #DDE4EF;font-size:11px;">
+            <span style="color:${C2.sub};">${l}</span>
+            <span style="color:${l==='월 합계'?C2.blue:C2.text};font-weight:${l==='월 합계'?700:400};">₩${v.toLocaleString()}</span>
+          </div>`).join('')}
+      </div>`:'';
+
+    el.innerHTML=wrap2(`
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+        ${backBtn2('renderAnnualMain()')}
+        <span style="font-size:13px;font-weight:700;color:${C2.text};">연봉계약서 작성</span>
+      </div>
+      ${card2('👤 근로자 선택',`
+        <select onchange="annualWorkerSelect2(this.value)" style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:10px 12px;font-size:13px;font-weight:600;color:${C2.blue};background:#E8F0FB;cursor:pointer;">
+          <option value="">근로자를 선택하세요</option>
+          ${workers.map(w=>`<option value="${w.id}" ${annualForm2.workerId===w.id?'selected':''}>${w.empNo||'-'} · ${w.name} (${w.rank||''})</option>`).join('')}
+        </select>
+        ${annualForm2.name?`<div style="margin-top:10px;background:#F8FAFD;border-radius:8px;overflow:hidden;">
+          ${[['이름',annualForm2.name],['소속',annualForm2.dept||'-'],['직급',annualForm2.rank||'-'],['주소',annualForm2.address||'-']].map(([l,v])=>`
+            <div style="display:flex;padding:7px 12px;border-bottom:1px solid #F0F4FA;font-size:12px;">
+              <span style="color:${C2.sub};min-width:60px;font-weight:600;">${l}</span><span style="color:${C2.text};">${v}</span>
+            </div>`).join('')}
+        </div>`:''}
+      `)}
+      ${annualForm2.name?`
+      ${card2('📅 계약 기간',`
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+          ${field2('시작일',`<input type="date" value="${annualForm2.startDate}" onchange="annualForm2.startDate=this.value" style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:9px 8px;font-size:12px;box-sizing:border-box;">`)}
+          ${field2('종료일',`<input type="date" value="${annualForm2.endDate}" onchange="annualForm2.endDate=this.value" style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:9px 8px;font-size:12px;box-sizing:border-box;">`)}
+        </div>
+        ${field2('계약일자',`<input type="date" value="${annualForm2.contractDate}" onchange="annualForm2.contractDate=this.value" ${inp2Style}>`)}
+      `)}
+      ${card2('💰 계약 연봉',`
+        ${field2('계약 연봉 (원)',`<input type="number" value="${annualForm2.salary}" placeholder="숫자만 입력" oninput="annualForm2.salary=this.value;annualRefreshForm2();" ${inp2Style}>${salPreview}`)}
+      `)}
+      ${card2('✍️ 서명',`
+        <div style="text-align:center;">
+          ${annualForm2.signData
+            ?`<img src="${annualForm2.signData}" style="width:160px;height:60px;object-fit:contain;border:1px solid #DDE4EF;border-radius:8px;"/><br/>
+               <button onclick="annualForm2.signData=null;annualRefreshForm2();" style="font-size:11px;color:${C2.mute};background:none;border:none;cursor:pointer;text-decoration:underline;">지우기</button>`
+            :`<button onclick="annualOpenSign2();" style="padding:10px 24px;background:#E8F0FB;border:2px dashed #1D5BA6;border-radius:10px;color:#1D5BA6;font-size:13px;font-weight:600;cursor:pointer;">✍️ 서명하기</button>`}
+        </div>
+      `)}
+      <div style="display:flex;gap:8px;">
+        <button onclick="annualPreview2();" style="flex:1;padding:13px;background:${C2.sub};border:none;border-radius:12px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">📄 미리보기</button>
+        <button onclick="annualSave2();" style="flex:1;padding:13px;background:${C2.green};border:none;border-radius:12px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">✅ 확정 저장</button>
+      </div>
+      <div id="annual-sign2-popup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
+        <div style="background:#fff;border-radius:16px;padding:24px;width:320px;text-align:center;">
+          <div style="font-size:14px;font-weight:700;color:${C2.text};margin-bottom:16px;">✍️ 서명</div>
+          <div style="position:relative;border:1px solid #DDE4EF;border-radius:8px;overflow:hidden;background:#FAFCFF;margin-bottom:12px;">
+            <canvas id="annual-sign2-canvas" width="272" height="100" style="display:block;cursor:crosshair;touch-action:none;"></canvas>
+            <div id="annual-sign2-hint" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;"><span style="font-size:12px;color:${C2.mute};">손가락으로 서명하세요</span></div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button onclick="annualClearSign2()" style="flex:1;padding:10px;background:#F8FAFD;border:1px solid #DDE4EF;border-radius:8px;font-size:13px;cursor:pointer;color:${C2.sub};">지우기</button>
+            <button onclick="annualCancelSign2()" style="flex:1;padding:10px;background:#F8FAFD;border:1px solid #DDE4EF;border-radius:8px;font-size:13px;cursor:pointer;color:${C2.sub};">취소</button>
+            <button onclick="annualSaveSign2()" style="flex:1;padding:10px;background:${C2.blue};border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;color:#fff;">확인</button>
+          </div>
+        </div>
+      </div>`:''}
+    `);
+    setTimeout(()=>{const p=document.getElementById('annual-sign2-popup');if(p)p.style.display='none';},50);
+  };
+
+  window.annualRefreshForm2=renderAForm;
+  window.annualWorkerSelect2=(wid)=>{
+    const w=(window._annualWorkers2||[]).find(x=>x.id===wid);
+    if(!w)return;
+    annualForm2.workerId=wid; annualForm2.name=w.name||''; annualForm2.jumin=w.jumin||'';
+    annualForm2.address=w.address||''; annualForm2.dept=w.dept||''; annualForm2.rank=w.rank||'';
+    renderAForm();
+  };
+  renderAForm();
+};
+
+window.annualOpenSign2=()=>{const p=document.getElementById('annual-sign2-popup');if(!p)return;p.style.display='flex';
+  setTimeout(()=>{annualSignCanvas2=document.getElementById('annual-sign2-canvas');if(!annualSignCanvas2)return;
+    const ctx=annualSignCanvas2.getContext('2d');ctx.clearRect(0,0,272,100);
+    const hint=document.getElementById('annual-sign2-hint');
+    const gp=e=>{const r=annualSignCanvas2.getBoundingClientRect();const t=e.touches?.[0]||e;return{x:(t.clientX-r.left)*(annualSignCanvas2.width/r.width),y:(t.clientY-r.top)*(annualSignCanvas2.height/r.height)};};
+    annualSignCanvas2.onmousedown=e=>{annualSignDrawing2=true;const p=gp(e);ctx.beginPath();ctx.moveTo(p.x,p.y);};
+    annualSignCanvas2.onmousemove=e=>{if(!annualSignDrawing2)return;ctx.lineWidth=2.5;ctx.lineCap='round';ctx.strokeStyle='#1A2540';const p=gp(e);ctx.lineTo(p.x,p.y);ctx.stroke();if(hint)hint.style.display='none';};
+    annualSignCanvas2.onmouseup=()=>annualSignDrawing2=false; annualSignCanvas2.onmouseleave=()=>annualSignDrawing2=false;
+    annualSignCanvas2.addEventListener('touchstart',e=>{e.preventDefault();annualSignDrawing2=true;const p=gp(e);ctx.beginPath();ctx.moveTo(p.x,p.y);},{passive:false});
+    annualSignCanvas2.addEventListener('touchmove',e=>{e.preventDefault();if(!annualSignDrawing2)return;ctx.lineWidth=2.5;ctx.lineCap='round';ctx.strokeStyle='#1A2540';const p=gp(e);ctx.lineTo(p.x,p.y);ctx.stroke();if(hint)hint.style.display='none';},{passive:false});
+    annualSignCanvas2.addEventListener('touchend',e=>{e.preventDefault();annualSignDrawing2=false;},{passive:false});
+  },100);};
+window.annualClearSign2=()=>{if(annualSignCanvas2){annualSignCanvas2.getContext('2d').clearRect(0,0,272,100);const h=document.getElementById('annual-sign2-hint');if(h)h.style.display='flex';}};
+window.annualCancelSign2=()=>{const p=document.getElementById('annual-sign2-popup');if(p)p.style.display='none';};
+window.annualSaveSign2=()=>{if(annualSignCanvas2)annualForm2.signData=annualSignCanvas2.toDataURL();const p=document.getElementById('annual-sign2-popup');if(p)p.style.display='none';if(window.annualRefreshForm2)window.annualRefreshForm2();};
+
+window.annualSave2=async()=>{
+  if(!annualForm2.workerId||!annualForm2.contractDate){alert('근로자와 계약일자는 필수입니다.');return;}
+  if(!window._db){alert('Firebase 연결 필요');return;}
+  if(!confirm(`${annualForm2.name}님의 연봉계약서를 저장하시겠습니까?`))return;
+  try{
+    const { doc, setDoc }=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const cid=annualForm2.contractDate.replace(/-/g,'');
+    await setDoc(doc(window._db,`annual_contracts/${annualForm2.workerId}/contracts`,cid),{...annualForm2,savedAt:new Date().toISOString(),savedBy:'admin'});
+    alert('✅ 연봉계약서 저장 완료!'); renderAnnualMain();
+  }catch(e){alert('오류: '+e.message);}
+};
+
+window.annualPreview2=()=>{
+  const f=annualForm2; const sal=calcAnnualSalary(Number(f.salary));
+  const fmtDp=s=>{if(!s)return'____년 __월 __일';const d=new Date(s);return`${d.getFullYear()}년 ${String(d.getMonth()+1).padStart(2,'0')}월 ${String(d.getDate()).padStart(2,'0')}일`;};
+  const ul=(v,w)=>`<span style="display:inline-block;min-width:${w||80}px;border-bottom:1px solid #333;text-align:center;padding:0 2px;">${v||''}</span>`;
+  const tr=(l,a,b)=>`<tr><td style="border:1px solid #333;padding:5px 8px;font-size:10pt;">${l}</td><td style="border:1px solid #333;padding:5px 8px;text-align:right;font-size:10pt;">${a}</td><td style="border:1px solid #333;padding:5px 8px;font-size:9pt;color:#555;">${b}</td></tr>`;
+  const w=v=>v?`₩${Number(v).toLocaleString()}`:'';
+  const signImg=f.signData?`<img src="${f.signData}" style="width:100px;height:40px;object-fit:contain;opacity:0.9;vertical-align:middle;"/>`:`<span style="display:inline-block;width:100px;height:40px;border:1px dashed #ccc;vertical-align:middle;"></span>`;
+  const win=window.open('','_blank');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>연봉계약서 - ${f.name}</title>
+    <style>body{margin:0;font-family:'Malgun Gothic',Arial,sans-serif;background:#888;display:flex;flex-direction:column;align-items:center;padding:20px;}.a4{width:210mm;min-height:297mm;background:#fff;padding:20mm 22mm;box-shadow:0 4px 24px rgba(0,0,0,.2);font-size:10.5pt;line-height:1.9;color:#1A2540;}@media print{body{background:#fff;padding:0;}.toolbar{display:none;}.a4{box-shadow:none;padding:15mm 20mm;width:100%;}}</style>
+    </head><body>
+    <div class="toolbar" style="margin-bottom:12px;display:flex;gap:8px;">
+      <button onclick="window.close()" style="padding:8px 16px;background:#fff;border:1px solid #DDE4EF;border-radius:8px;cursor:pointer;">← 닫기</button>
+      <button onclick="window.print()" style="padding:8px 16px;background:#1D5BA6;border:none;border-radius:8px;color:#fff;font-weight:700;cursor:pointer;">🖨 인쇄/PDF</button>
+    </div>
+    <div class="a4">
+      <div style="text-align:center;margin-bottom:28px;"><div style="font-size:20pt;font-weight:800;letter-spacing:6px;">연 봉 계 약 서</div><div style="width:60px;height:2px;background:#333;margin:8px auto 0;"></div></div>
+      <p style="margin-bottom:12px;">제이에이치솔루션 (이하"갑"이라 한다.)과 근로자 ${ul(f.name,100)} (이하 "을"이라 한다.)는 다음과 같은 조건으로 연봉계약을 체결하고, 이를 성실하게 준수할 것을 확인한다.</p>
+      <p style="font-weight:700;margin:14px 0 5px;">제1조 (연봉계약기간)</p>
+      <p style="margin-bottom:4px;">① 직원의 연봉계약기간은 ${fmtDp(f.startDate)} 부터 ${fmtDp(f.endDate)}까지(12개월)로 한다.</p>
+      <p style="margin-bottom:4px;">② 연봉 계약 기간 중 회사규정에 따른 연봉의 증감 사유가 발생한 때에는 제1항의 계약 기간 중이라도 연봉을 조정할 수 있다.</p>
+      <p style="margin-bottom:10px;">③ 근로 계약 해지 사유가 발생하여 근로계약이 종료되면 본 계약도 해지된 것으로 간주한다.</p>
+      <p style="font-weight:700;margin:14px 0 5px;">제2조 (연봉의 구성)</p>
+      <p style="margin-bottom:6px;">① 계약 연봉은 ${f.salary?`금 ${Number(f.salary).toLocaleString()}원`:'금 ____________원'}으로 한다.</p>
+      <p style="margin-bottom:8px;">② 월급여 임금 구성:</p>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:6px;">
+        <thead><tr style="background:#E8F0FB;"><th style="border:1px solid #333;padding:6px 8px;text-align:left;font-size:10pt;">항목</th><th style="border:1px solid #333;padding:6px 8px;text-align:right;font-size:10pt;">금액</th><th style="border:1px solid #333;padding:6px 8px;text-align:left;font-size:10pt;">산출근거</th></tr></thead>
+        <tbody>${tr('월 기본급',w(sal.basic),'계약연봉 ÷ 12')}${tr('고정연장수당',w(sal.fixedOt),'기본급÷209×10×4.345×1.5')}${tr('고정야간수당',w(sal.fixedNight),'기본급÷209×40×4.345×0.5')}${tr('상여금','','회사 내규에 따름')}${tr('특별성과급','','회사 내규에 따름')}${tr('특근수당','','주말, 공휴일 출근 시 지급')}
+        <tr style="background:#E8F0FB;"><td style="border:1px solid #333;padding:6px 8px;font-weight:700;font-size:10pt;">합계</td><td style="border:1px solid #333;padding:6px 8px;text-align:right;font-weight:700;font-size:10pt;">${w(sal.total)}</td><td style="border:1px solid #333;padding:6px 8px;"></td></tr></tbody>
+      </table>
+      <p style="font-size:9pt;color:#555;margin-bottom:10px;">※ 위 임금구성은 소정근로시간(주52시간)을 기준으로 작성됨</p>
+      <p style="font-weight:700;margin:14px 0 5px;">제3조 (지급시기 및 방법)</p>
+      <p style="margin-bottom:4px;">① 연봉을 12개월로 균등 분할해 익월 말일에 지급한다.</p>
+      <p style="margin-bottom:4px;">② 지급일이 휴일인 경우 다음 은행 영업일에 지급한다.</p>
+      <p style="margin-bottom:10px;">③ 임금은 제세공과금 원천징수 후 급여 계좌로 입금한다.</p>
+      <p style="font-weight:700;margin:14px 0 5px;">제4조 (기밀유지)</p>
+      <p style="margin-bottom:10px;">직원은 본 계약 내용 및 타 직원 연봉에 관한 사항에 대하여 기밀을 유지하여야 한다.</p>
+      <p style="font-weight:700;margin:14px 0 5px;">제5조 ~ 제7조</p>
+      <p style="margin-bottom:20px;">효력정지, 기타사항, 근로계약서 교부에 관한 사항은 당사 취업규칙 및 근로기준법에 준한다.</p>
+      <p style="font-weight:600;margin-bottom:20px;">계약일자 : ${fmtDp(f.contractDate)}</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-top:16px;">
+        <div style="border-top:1px solid #333;padding-top:14px;"><p style="font-weight:700;margin-bottom:8px;">(갑)</p><p>사업체명 : 제이에이치솔루션</p><p>대&nbsp;&nbsp;&nbsp;&nbsp;표 : 김 종 화 (인)</p><p>사업자번호 : 383-09-02847</p></div>
+        <div style="border-top:1px solid #333;padding-top:14px;"><p style="font-weight:700;margin-bottom:8px;">(을)</p><p>주&nbsp;&nbsp;소 : ${ul(f.address,150)}</p><p>이&nbsp;&nbsp;름 : ${ul(f.name,80)}</p><p>주민등록번호 : ${ul(f.jumin,110)}</p><div style="margin-top:10px;display:flex;align-items:center;gap:8px;"><span>(인)</span>${signImg}</div></div>
+      </div>
+    </div></body></html>`);
+  win.document.close();
+};
+
+window.renderAnnualList2=async()=>{
+  const el=document.getElementById('tab-annual');
+  el.innerHTML=wrap2(`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+      ${backBtn2('renderAnnualMain()','뒤로')}
+      <span style="font-size:12px;color:${C2.sub};font-weight:600;">연봉계약서 조회</span>
+    </div>
+    <div id="annual-list2-loading" style="text-align:center;padding:32px;color:${C2.mute};">⏳ 불러오는 중...</div>
+    <div id="annual-list2-wrap"></div>
+  `);
+  const workers=await getWorkersList();
+  document.getElementById('annual-list2-loading').style.display='none';
+  if(!workers.length){document.getElementById('annual-list2-wrap').innerHTML='<div style="text-align:center;padding:40px;color:'+C2.mute+';">등록된 근로자가 없습니다.</div>';return;}
+  document.getElementById('annual-list2-wrap').innerHTML=`
+    <div style="background:#fff;border-radius:12px;border:1px solid #DDE4EF;overflow:hidden;box-shadow:${C2.shadow};">
+      <div style="display:grid;grid-template-columns:0.6fr 1fr 0.7fr 0.6fr;background:#E8F0FB;padding:9px 12px;gap:6px;">
+        ${['사원번호','이름','소속','직급'].map(h=>`<div style="font-size:10px;font-weight:700;color:${C2.blue};">${h}</div>`).join('')}
+      </div>
+      ${workers.map((w,i)=>`
+        <button onclick="annualViewWorker2('${w.id}','${w.name}')"
+          style="width:100%;display:grid;grid-template-columns:0.6fr 1fr 0.7fr 0.6fr;padding:11px 12px;gap:6px;
+            background:${i%2===0?'#fff':'#F8FAFD'};border:none;border-bottom:1px solid #F0F4FA;cursor:pointer;text-align:left;align-items:center;">
+          <div style="font-size:12px;font-weight:700;color:${C2.blue};">${w.empNo||'-'}</div>
+          <div style="font-size:13px;font-weight:600;color:${C2.text};">${w.name}</div>
+          <div style="font-size:11px;color:${C2.sub};">${w.dept||'-'}</div>
+          <div style="font-size:11px;color:${C2.sub};">${w.rank||'-'}</div>
+        </button>`).join('')}
+    </div>`;
+};
+
+window.annualViewWorker2=async(wid,wname)=>{
+  const el=document.getElementById('tab-annual');
+  el.innerHTML=wrap2(`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+      ${backBtn2('renderAnnualList2()','목록')}
+      <span style="font-size:13px;font-weight:700;color:${C2.text};">${wname} · 연봉계약서</span>
+    </div>
+    <div id="annual-contracts-loading" style="text-align:center;padding:32px;color:${C2.mute};">⏳ 불러오는 중...</div>
+    <div id="annual-contracts-wrap"></div>
+  `);
+  try{
+    const { getDocs, collection, doc, deleteDoc }=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const snap=await getDocs(collection(window._db,`annual_contracts/${wid}/contracts`));
+    const docs=[]; snap.forEach(d=>docs.push({id:d.id,...d.data()}));
+    docs.sort((a,b)=>(b.contractDate||b.id).localeCompare(a.contractDate||a.id));
+    document.getElementById('annual-contracts-loading').style.display='none';
+    if(!docs.length){document.getElementById('annual-contracts-wrap').innerHTML='<div style="text-align:center;padding:32px;color:'+C2.mute+';">연봉계약서가 없습니다.</div>';return;}
+    document.getElementById('annual-contracts-wrap').innerHTML=docs.map(d=>`
+      <div style="background:#fff;border-radius:12px;border:1px solid #DDE4EF;padding:14px;margin-bottom:8px;box-shadow:${C2.shadow};">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+          <span style="font-size:13px;font-weight:700;color:${C2.blue};">계약일: ${fmtD2(d.contractDate)}</span>
+          <span style="font-size:10px;background:${C2.greenLt};color:${C2.green};padding:2px 8px;border-radius:8px;font-weight:700;">✅ 저장됨</span>
+        </div>
+        <div style="font-size:12px;color:${C2.sub};margin-bottom:4px;">계약기간: ${fmtD2(d.startDate)} ~ ${fmtD2(d.endDate)}</div>
+        <div style="font-size:12px;color:${C2.sub};margin-bottom:10px;">계약연봉: ${d.salary?'₩'+Number(d.salary).toLocaleString():'-'}</div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="annualPreviewSaved2(${JSON.stringify(d).replace(/"/g,'&quot;')})"
+            style="flex:1;padding:8px;background:#E8F0FB;border:1px solid #DDE4EF;border-radius:8px;font-size:12px;font-weight:600;color:${C2.blue};cursor:pointer;">📄 PDF 출력</button>
+          <button onclick="annualDeleteContract2('${wid}','${d.id}','${wname}')"
+            style="padding:8px 12px;background:${C2.redLt};border:1px solid #fca5a5;border-radius:8px;font-size:12px;font-weight:600;color:${C2.red};cursor:pointer;">🗑 삭제</button>
+        </div>
+      </div>`).join('');
+  }catch(e){document.getElementById('annual-contracts-loading').innerHTML=`<div style="color:${C2.red};">오류: ${e.message}</div>`;}
+};
+
+window.annualDeleteContract2=async(wid,cid,wname)=>{
+  if(!confirm(`${wname}님의 연봉계약서(${cid})를 삭제하시겠습니까?`))return;
+  const { doc, deleteDoc }=await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+  await deleteDoc(doc(window._db,`annual_contracts/${wid}/contracts`,cid));
+  annualViewWorker2(wid,wname);
+};
+
+window.annualPreviewSaved2=(d)=>{annualForm2={...d};annualPreview2();};
 </script>
