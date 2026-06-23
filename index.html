@@ -245,7 +245,7 @@
             const md = snap.data().md || {};
             dailyData[dateKey] = md;
             window._mandayCache = window._mandayCache || {};
-            window._mandayCache[d] = md;
+            window._mandayCache[dateKey] = md;
             Object.entries(md).forEach(([wid, val]) => {
               if (totals[wid] !== undefined) totals[wid] += val;
             });
@@ -281,6 +281,11 @@
       if (window._mandayCache && window._mandayCache[dateKey]) {
         dayData[d] = window._mandayCache[dateKey];
       }
+    }
+    // 캐시가 비어있으면 경고
+    if (Object.keys(dayData).length === 0) {
+      alert('공수 데이터를 먼저 불러와주세요. (탭 재진입 후 시도)');
+      return;
     }
 
     // 헤더 행
