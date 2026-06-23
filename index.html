@@ -96,19 +96,39 @@
     showProgressLoading(true);
     allProgressData = {};
     const daysInMonth = new Date(progressYear, progressMonth, 0).getDate();
+    const dbLog = [];
     const promises = [];
     for (let d = 1; d <= daysInMonth; d++) {
       const dateKey = `${progressYear}-${String(progressMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
       promises.push((async () => {
         const dayData = {};
         for (const s of SECTORS) {
-          const snap = await getDoc(doc(db, `progress_checks_${dateKey}`, s.id));
-          if (snap.exists()) dayData[s.id] = snap.data();
+          try {
+            const snap = await getDoc(doc(db, `progress_checks_${dateKey}`, s.id));
+            if (snap.exists()) {
+              dayData[s.id] = snap.data();
+              const keys = Object.keys(snap.data());
+              dbLog.push(`${dateKey}/${s.id}: ${keys.length}개 키`);
+            }
+          } catch(e) {
+            dbLog.push(`ERROR ${dateKey}/${s.id}: ${e.message}`);
+          }
         }
         if (Object.keys(dayData).length > 0) allProgressData[dateKey] = dayData;
       })());
     }
     await Promise.all(promises);
+    // 디버그 결과 화면에 표시
+    const debugEl = document.getElementById('debug-log');
+    if (debugEl) {
+      if (dbLog.length === 0) {
+        debugEl.textContent = '⚠️ 읽힌 데이터 없음 — Firebase 연결 실패 가능성';
+      } else {
+        debugEl.textContent = dbLog.join('\n');
+      }
+      debugEl.style.display = 'block';
+    }
+    console.log('DB 로그:', dbLog);
     showProgressLoading(false);
     renderProgressMonth();
   }
@@ -450,6 +470,7 @@ body { font-family:-apple-system,'Apple SD Gothic Neo','Pretendard',sans-serif; 
       <span id="progress-view-title">섹터별 월간 요약</span>
     </div>
     <div id="progress-summary"></div>
+    <pre id="debug-log" style="display:none;background:#fff3e0;border:1px solid #f7941d;border-radius:8px;padding:12px;font-size:11px;color:#5d3a00;white-space:pre-wrap;word-break:break-all;margin-bottom:12px;max-height:200px;overflow-y:auto;"></pre>
     <div id="progress-loading"><div class="spinner"></div><span>데이터 불러오는 중...</span></div>
     <div id="progress-content"><div id="progress-table-wrap"></div></div>
   </div>
