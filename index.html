@@ -9,7 +9,7 @@
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
   import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
     from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-  import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, getDocs, query, where, serverTimestamp }
+  import { getFirestore, doc, getDoc, setDoc, serverTimestamp }
     from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
   const firebaseConfig = {
@@ -29,22 +29,21 @@
 
   // ── 섹터 정의 ──
   const SECTORS = [
-    { id:'fiz', name:'3F FIZ',      qty:39,  devices: Array.from({length:39}, (_,i)=>`${801+i}`) },
-    { id:'xob', name:'X-OB',        qty:19,  devices: Array.from({length:19}, (_,i)=>`${861+i}`) },
-    { id:'c3',  name:'복합3동',      qty:14,  devices: Array.from({length:14}, (_,i)=>`${351+i}`) },
-    { id:'c4',  name:'복합4동',      qty:14,  devices: ['302A','302B','302C','302D','302E','302F','302G','302H','302I','302J','302K','302L','302M','302N'] },
-    { id:'wob', name:'W-OB',        qty:81,  devices: Array.from({length:81}, (_,i)=>`W-${101+i}`) },
+    { id:'fiz', name:'3F FIZ',       qty:39,  devices: Array.from({length:39}, (_,i)=>`${801+i}`) },
+    { id:'xob', name:'X-OB',         qty:19,  devices: Array.from({length:19}, (_,i)=>`${861+i}`) },
+    { id:'c3',  name:'복합3동',       qty:14,  devices: Array.from({length:14}, (_,i)=>`${351+i}`) },
+    { id:'c4',  name:'복합4동',       qty:14,  devices: ['302A','302B','302C','302D','302E','302F','302G','302H','302I','302J','302K','302L','302M','302N'] },
+    { id:'wob', name:'W-OB',         qty:81,  devices: Array.from({length:81}, (_,i)=>`W-${101+i}`) },
     { id:'mfr', name:'2F 제조부속실', qty:16,  devices: ['801','802','811','812','813','814','815','816','817','818','819','820','821','822','823','824'] },
   ];
 
   const INSTALL_CHECKS = ['내진스토퍼','다이크','실링','동판','결선'];
 
-  // 설치 완료 여부: 5개 모두 체크
   function isInstallDone(checks, deviceId) {
     return INSTALL_CHECKS.every(c => checks[`${deviceId}_${c}`] === 1);
   }
 
-  // ── 로그인/로그아웃 ──
+  // ── 인증 ──
   window.doLogin = async () => {
     try { await signInWithPopup(auth, provider); }
     catch(e) { alert('로그인 중 오류가 발생했습니다.'); }
@@ -59,7 +58,6 @@
       document.getElementById('user-initial').textContent =
         (user.displayName || user.email)[0].toUpperCase();
       showScreen('app');
-      loadAllowedUsers();
     } else {
       await setDoc(doc(db, 'access_requests', user.email), {
         email: user.email, displayName: user.displayName || '',
@@ -69,76 +67,37 @@
     }
   });
 
-  // ── 접근 관리 ──
-  window.loadAllowedUsers = async () => {
-    const snap = await getDocs(collection(db, 'allowed_users'));
-    const list = document.getElementById('allowed-list');
-    list.innerHTML = '';
-    snap.forEach(d => {
-      list.innerHTML += `
-        <div class="user-item">
-          <div class="user-info">
-            <div class="user-email">${d.id}</div>
-            <div class="user-role">${d.data().role||'user'}</div>
-          </div>
-          ${d.id !== currentUser.email
-            ? `<button class="revoke-btn" onclick="revokeUser('${d.id}')">취소</button>`
-            : '<div class="role-badge">나</div>'}
-        </div>`;
-    });
-    const reqSnap = await getDocs(collection(db, 'access_requests'));
-    const reqList = document.getElementById('request-list');
-    const noReq   = document.getElementById('no-request');
-    reqList.innerHTML = '';
-    let cnt = 0;
-    reqSnap.forEach(d => {
-      cnt++;
-      reqList.innerHTML += `
-        <div class="user-item">
-          <div class="user-info">
-            <div class="user-email">${d.id}</div>
-            <div class="user-role">${d.data().displayName||''}</div>
-          </div>
-          <button class="approve-btn" onclick="approveUser('${d.id}','${d.data().displayName||''}')">승인</button>
-        </div>`;
-    });
-    noReq.style.display = cnt === 0 ? 'block' : 'none';
-  };
-
-  window.approveUser = async (email, name) => {
-    await setDoc(doc(db, 'allowed_users', email), {
-      role:'user', displayName:name||'',
-      approvedAt:serverTimestamp(), approvedBy:currentUser.email
-    });
-    await deleteDoc(doc(db, 'access_requests', email));
-    loadAllowedUsers();
-  };
-
-  window.revokeUser = async (email) => {
-    if (!confirm(`${email} 의 접근 권한을 취소할까요?`)) return;
-    await deleteDoc(doc(db, 'allowed_users', email));
-    loadAllowedUsers();
-  };
-
-  // ── 공정율 탭 ──
-  let progressViewMode = 'month'; // month | day | device
-  let progressSelectedSector = null;
-  let progressYear = new Date().getFullYear();
+  // ── 공정 현황 ──
+  let progressYear  = new Date().getFullYear();
   let progressMonth = new Date().getMonth() + 1;
-  let allProgressData = {}; // { dateKey: { sectorId: { deviceId_check: 1 } } }
+  let allProgressData = {};
+  let progressView = 'month';
+  let selectedSector = null;
 
-  // 해당 월의 모든 날짜 progress_checks 불러오기
-  window.loadProgress = async () => {
+  window.onProgressTabEnter = () => {
+    progressYear  = new Date().getFullYear();
+    progressMonth = new Date().getMonth() + 1;
+    document.getElementById('progress-month-label').textContent =
+      `${progressYear}년 ${progressMonth}월`;
+    loadProgress();
+  };
+
+  window.changeProgressMonth = (delta) => {
+    progressMonth += delta;
+    if (progressMonth > 12) { progressMonth = 1; progressYear++; }
+    if (progressMonth < 1)  { progressMonth = 12; progressYear--; }
+    document.getElementById('progress-month-label').textContent =
+      `${progressYear}년 ${progressMonth}월`;
+    loadProgress();
+  };
+
+  async function loadProgress() {
     showProgressLoading(true);
     allProgressData = {};
-    const year = progressYear;
-    const month = progressMonth;
-    const daysInMonth = new Date(year, month, 0).getDate();
-
-    // 병렬 조회
+    const daysInMonth = new Date(progressYear, progressMonth, 0).getDate();
     const promises = [];
     for (let d = 1; d <= daysInMonth; d++) {
-      const dateKey = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const dateKey = `${progressYear}-${String(progressMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
       promises.push((async () => {
         const dayData = {};
         for (const s of SECTORS) {
@@ -151,47 +110,26 @@
     await Promise.all(promises);
     showProgressLoading(false);
     renderProgressMonth();
-  };
+  }
 
   function showProgressLoading(on) {
     document.getElementById('progress-loading').style.display = on ? 'flex' : 'none';
     document.getElementById('progress-content').style.display = on ? 'none' : 'block';
   }
 
-  // 누계 집계 (월 전체)
-  function calcMonthTotals() {
-    const result = {};
-    SECTORS.forEach(s => { result[s.id] = { banip:0, install:0 }; });
-
-    Object.values(allProgressData).forEach(dayData => {
-      SECTORS.forEach(s => {
-        if (!dayData[s.id]) return;
-        const checks = dayData[s.id];
-        s.devices.forEach(dev => {
-          if (checks[`${dev}_반입`] === 1) result[s.id].banip++;
-          if (isInstallDone(checks, dev)) result[s.id].install++;
-        });
-      });
-    });
-    // 중복 방지: 장비별로 한 번만 카운트
-    return calcDeviceCumulative();
-  }
-
-  // 장비별 누적 (날짜 무관하게 체크된 것 합산 — 중복 없이)
+  // 장비별 누적 집계 (중복 없이)
   function calcDeviceCumulative() {
     const result = {};
     SECTORS.forEach(s => { result[s.id] = { banip:0, install:0, devices:{} }; });
-
-    // 날짜순 정렬
     const sortedDates = Object.keys(allProgressData).sort();
     sortedDates.forEach(dateKey => {
       const dayData = allProgressData[dateKey];
       SECTORS.forEach(s => {
         if (!dayData[s.id]) return;
         const checks = dayData[s.id];
-        if (!result[s.id].devices) result[s.id].devices = {};
         s.devices.forEach(dev => {
-          if (!result[s.id].devices[dev]) result[s.id].devices[dev] = { banip:false, install:false, banipDate:null, installDate:null };
+          if (!result[s.id].devices[dev])
+            result[s.id].devices[dev] = { banip:false, install:false, banipDate:null, installDate:null };
           if (checks[`${dev}_반입`] === 1 && !result[s.id].devices[dev].banip) {
             result[s.id].devices[dev].banip = true;
             result[s.id].devices[dev].banipDate = dateKey;
@@ -203,11 +141,9 @@
         });
       });
     });
-
-    // 집계
     SECTORS.forEach(s => {
-      Object.values(result[s.id].devices||{}).forEach(d => {
-        if (d.banip) result[s.id].banip++;
+      Object.values(result[s.id].devices).forEach(d => {
+        if (d.banip)   result[s.id].banip++;
         if (d.install) result[s.id].install++;
       });
     });
@@ -218,103 +154,101 @@
   function calcDailyForSector(sectorId) {
     const sector = SECTORS.find(s => s.id === sectorId);
     const rows = [];
-    const cumBanip = new Set();
-    const cumInstall = new Set();
-    const sortedDates = Object.keys(allProgressData).sort();
-    sortedDates.forEach(dateKey => {
+    const cumBanip = new Set(), cumInstall = new Set();
+    Object.keys(allProgressData).sort().forEach(dateKey => {
       const dayData = allProgressData[dateKey];
       if (!dayData[sectorId]) return;
       const checks = dayData[sectorId];
       let todayBanip = 0, todayInstall = 0;
       sector.devices.forEach(dev => {
-        if (checks[`${dev}_반입`] === 1 && !cumBanip.has(dev)) { cumBanip.add(dev); todayBanip++; }
-        if (isInstallDone(checks, dev) && !cumInstall.has(dev)) { cumInstall.add(dev); todayInstall++; }
+        if (checks[`${dev}_반입`] === 1 && !cumBanip.has(dev))   { cumBanip.add(dev);   todayBanip++; }
+        if (isInstallDone(checks, dev)   && !cumInstall.has(dev)) { cumInstall.add(dev); todayInstall++; }
       });
-      if (todayBanip > 0 || todayInstall > 0) {
+      if (todayBanip > 0 || todayInstall > 0)
         rows.push({ date:dateKey, banip:todayBanip, cumBanip:cumBanip.size, install:todayInstall, cumInstall:cumInstall.size });
-      }
     });
     return rows;
   }
 
-  // ── 렌더: 월별 요약 ──
+  // ── 렌더: 월별 ──
   window.renderProgressMonth = () => {
-    progressViewMode = 'month';
-    progressSelectedSector = null;
+    progressView = 'month'; selectedSector = null;
     document.getElementById('progress-back').style.display = 'none';
     document.getElementById('progress-view-title').textContent = '섹터별 월간 요약';
     const totals = calcDeviceCumulative();
-    let totalBanip = 0, totalInstall = 0, totalQty = 183;
-    let html = `
-      <table class="prog-table">
-        <thead><tr>
-          <th>섹터</th><th>물량</th><th>반입</th><th>설치</th><th>공정율</th>
-        </tr></thead><tbody>`;
+    let totalBanip = 0, totalInstall = 0;
+    SECTORS.forEach(s => { totalBanip += totals[s.id].banip; totalInstall += totals[s.id].install; });
+    const totalRate = ((totalBanip + totalInstall) / (183 * 2) * 100).toFixed(1);
+
+    // 요약 카드
+    document.getElementById('progress-summary').innerHTML = `
+      <div class="summary-cards">
+        <div class="s-card"><div class="s-val">${183}대</div><div class="s-label">전체 물량</div></div>
+        <div class="s-card blue"><div class="s-val">${totalBanip}대</div><div class="s-label">반입 누계</div></div>
+        <div class="s-card blue"><div class="s-val">${totalInstall}대</div><div class="s-label">설치 누계</div></div>
+        <div class="s-card accent"><div class="s-val">${totalRate}%</div><div class="s-label">전체 공정율</div></div>
+      </div>`;
+
+    let rows = '';
     SECTORS.forEach(s => {
       const t = totals[s.id];
-      totalBanip += t.banip; totalInstall += t.install;
       const rate = ((t.banip + t.install) / (s.qty * 2) * 100).toFixed(1);
-      html += `<tr class="prog-row" onclick="showDayView('${s.id}')">
-        <td><span class="sector-link">${s.name}</span></td>
-        <td>${s.qty}</td>
-        <td>${t.banip}</td>
-        <td>${t.install}</td>
-        <td><span class="rate-badge">${rate}%</span></td>
+      rows += `<tr class="clickable" onclick="showDayView('${s.id}')">
+        <td class="td-link">${s.name}</td>
+        <td>${s.qty}</td><td>${t.banip}</td><td>${t.install}</td>
+        <td><span class="rate-pill">${rate}%</span></td>
       </tr>`;
     });
-    const totalRate = ((totalBanip + totalInstall) / (totalQty * 2) * 100).toFixed(1);
-    html += `</tbody><tfoot><tr class="sum-row">
-      <td>합계</td><td>${totalQty}</td>
-      <td>${totalBanip}</td><td>${totalInstall}</td>
-      <td><span class="rate-badge accent">${totalRate}%</span></td>
-    </tr></tfoot></table>
-    <div class="table-hint">섹터 행 클릭 → 일별 / 장비별 조회</div>`;
-    document.getElementById('progress-table-wrap').innerHTML = html;
+    document.getElementById('progress-table-wrap').innerHTML = `
+      <table class="ptable">
+        <thead><tr><th>섹터</th><th>물량</th><th>반입</th><th>설치</th><th>공정율</th></tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr class="sum-row">
+          <td>합계</td><td>183</td><td>${totalBanip}</td><td>${totalInstall}</td>
+          <td><span class="rate-pill accent">${totalRate}%</span></td>
+        </tr></tfoot>
+      </table>
+      <div class="table-hint">섹터 행 클릭 → 일별 조회</div>`;
   };
 
   // ── 렌더: 일별 ──
   window.showDayView = (sectorId) => {
-    progressSelectedSector = sectorId;
-    progressViewMode = 'day';
+    progressView = 'day'; selectedSector = sectorId;
     const sector = SECTORS.find(s => s.id === sectorId);
     document.getElementById('progress-back').style.display = 'inline-flex';
     document.getElementById('progress-view-title').textContent = `${sector.name} · 일별 조회`;
+    document.getElementById('progress-summary').innerHTML = '';
     const rows = calcDailyForSector(sectorId);
-    if (rows.length === 0) {
+    if (!rows.length) {
       document.getElementById('progress-table-wrap').innerHTML = '<div class="no-data">이 달 데이터가 없습니다.</div>';
       return;
     }
-    let html = `
-      <table class="prog-table">
-        <thead><tr>
-          <th>날짜</th><th>반입(당일)</th><th>반입 누계</th><th>설치(당일)</th><th>설치 누계</th>
-        </tr></thead><tbody>`;
+    let html = `<table class="ptable">
+      <thead><tr><th>날짜</th><th>반입(당일)</th><th>반입 누계</th><th>설치(당일)</th><th>설치 누계</th></tr></thead>
+      <tbody>`;
     rows.forEach(r => {
-      html += `<tr class="prog-row" onclick="showDeviceView('${sectorId}','${r.date}')">
-        <td><span class="sector-link">${r.date.slice(5)}</span></td>
-        <td>${r.banip > 0 ? '+'+r.banip : '-'}</td>
-        <td>${r.cumBanip}</td>
-        <td>${r.install > 0 ? '+'+r.install : '-'}</td>
+      html += `<tr class="clickable" onclick="showDeviceView('${sectorId}','${r.date}')">
+        <td class="td-link">${r.date.slice(5)}</td>
+        <td class="${r.banip>0?'pos':''}">${r.banip>0?'+'+r.banip:'-'}</td>
+        <td><strong>${r.cumBanip}</strong></td>
+        <td class="${r.install>0?'pos':''}">${r.install>0?'+'+r.install:'-'}</td>
         <td>${r.cumInstall}</td>
       </tr>`;
     });
-    html += `</tbody></table>
-    <div class="table-hint">날짜 행 클릭 → 장비별 조회</div>`;
+    html += `</tbody></table><div class="table-hint">날짜 행 클릭 → 장비별 조회</div>`;
     document.getElementById('progress-table-wrap').innerHTML = html;
   };
 
   // ── 렌더: 장비별 ──
   window.showDeviceView = (sectorId, filterDate) => {
-    progressViewMode = 'device';
+    progressView = 'device';
     const sector = SECTORS.find(s => s.id === sectorId);
-    const label = filterDate ? `${sector.name} · ${filterDate.slice(5)} 장비별` : `${sector.name} · 장비별`;
-    document.getElementById('progress-view-title').textContent = label;
+    document.getElementById('progress-view-title').textContent =
+      `${sector.name} · ${filterDate ? filterDate.slice(5)+' ' : ''}장비별`;
 
-    // 누적 장비 상태 계산
     const devState = {};
     sector.devices.forEach(dev => { devState[dev] = { banip:false, install:false, banipDate:null, installDate:null }; });
-    const sortedDates = Object.keys(allProgressData).sort();
-    sortedDates.forEach(dateKey => {
+    Object.keys(allProgressData).sort().forEach(dateKey => {
       const dayData = allProgressData[dateKey];
       if (!dayData[sectorId]) return;
       const checks = dayData[sectorId];
@@ -328,29 +262,25 @@
       });
     });
 
-    // filterDate가 있으면 해당 날짜 기준으로 작업된 장비만
     const filtered = filterDate
       ? sector.devices.filter(dev => devState[dev].banipDate === filterDate || devState[dev].installDate === filterDate)
-      : sector.devices;
+      : sector.devices.filter(dev => devState[dev].banip || devState[dev].install);
 
-    if (filtered.length === 0) {
+    if (!filtered.length) {
       document.getElementById('progress-table-wrap').innerHTML = '<div class="no-data">해당 날짜 작업 장비가 없습니다.</div>';
       return;
     }
-
-    let html = `
-      <table class="prog-table">
-        <thead><tr>
-          <th>장비번호</th><th>반입</th><th>반입일</th><th>설치</th><th>설치일</th>
-        </tr></thead><tbody>`;
+    let html = `<table class="ptable">
+      <thead><tr><th>장비번호</th><th>반입</th><th>반입일</th><th>설치</th><th>설치일</th></tr></thead>
+      <tbody>`;
     filtered.forEach(dev => {
-      const s = devState[dev];
+      const d = devState[dev];
       html += `<tr>
         <td><strong>${dev}</strong></td>
-        <td>${s.banip ? '✅' : '-'}</td>
-        <td>${s.banipDate ? s.banipDate.slice(5) : '-'}</td>
-        <td>${s.install ? '✅' : '-'}</td>
-        <td>${s.installDate ? s.installDate.slice(5) : '-'}</td>
+        <td>${d.banip?'<span class="chk">✅</span>':'-'}</td>
+        <td class="date-cell">${d.banipDate?d.banipDate.slice(5):'-'}</td>
+        <td>${d.install?'<span class="chk">✅</span>':'-'}</td>
+        <td class="date-cell">${d.installDate?d.installDate.slice(5):'-'}</td>
       </tr>`;
     });
     html += `</tbody></table>`;
@@ -358,38 +288,14 @@
   };
 
   window.progressBack = () => {
-    if (progressViewMode === 'device' && progressSelectedSector) {
-      showDayView(progressSelectedSector);
-    } else {
-      renderProgressMonth();
-    }
-  };
-
-  window.changeProgressMonth = (delta) => {
-    progressMonth += delta;
-    if (progressMonth > 12) { progressMonth = 1; progressYear++; }
-    if (progressMonth < 1)  { progressMonth = 12; progressYear--; }
-    document.getElementById('progress-month-label').textContent =
-      `${progressYear}년 ${progressMonth}월`;
-    loadProgress();
-  };
-
-  // 탭 진입 시 자동 로드
-  window.onProgressTabEnter = () => {
-    progressYear = new Date().getFullYear();
-    progressMonth = new Date().getMonth() + 1;
-    document.getElementById('progress-month-label').textContent =
-      `${progressYear}년 ${progressMonth}월`;
-    loadProgress();
+    if (progressView === 'device' && selectedSector) showDayView(selectedSector);
+    else renderProgressMonth();
   };
 </script>
 
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
-body {
-  font-family: -apple-system,'Apple SD Gothic Neo','Pretendard',sans-serif;
-  background:#0B1220; color:#E8EDF5; min-height:100vh;
-}
+body { font-family:-apple-system,'Apple SD Gothic Neo','Pretendard',sans-serif; background:#F4F7FB; color:#1A2540; min-height:100vh; }
 
 .screen { display:none; min-height:100vh; flex-direction:column; }
 .screen.active { display:flex; }
@@ -397,156 +303,90 @@ body {
 /* 로그인 */
 #login-screen { align-items:center; justify-content:center; padding:24px; }
 .login-card {
-  background:#131C2E; border:1px solid #1E2D47; border-radius:16px;
-  padding:48px 40px; width:100%; max-width:400px; text-align:center;
+  background:#fff; border-radius:20px; box-shadow:0 4px 24px rgba(29,91,166,0.12);
+  padding:48px 40px; width:100%; max-width:380px; text-align:center;
 }
-.login-badge {
-  display:inline-block; background:#0D3B6E; color:#5BA4CF;
-  font-size:11px; font-weight:600; letter-spacing:1.5px;
-  padding:4px 12px; border-radius:20px; margin-bottom:20px; text-transform:uppercase;
-}
-.login-title { font-size:22px; font-weight:700; margin-bottom:6px; line-height:1.4; }
-.login-sub   { font-size:13px; color:#5C7A9E; margin-bottom:36px; }
-.divider     { height:1px; background:#1E2D47; margin-bottom:32px; }
-.google-btn {
+.login-brand { font-size:13px; font-weight:800; color:#1D5BA6; letter-spacing:2px; text-transform:uppercase; margin-bottom:4px; }
+.login-title { font-size:26px; font-weight:800; color:#1A2540; }
+.login-bar   { width:40px; height:3px; background:#1D5BA6; border-radius:2px; margin:12px auto 20px; }
+.login-sub   { font-size:13px; color:#5C6F8A; margin-bottom:32px; }
+.google-btn  {
   display:flex; align-items:center; justify-content:center; gap:12px;
   width:100%; padding:14px 20px; background:#1D5BA6; border:none;
-  border-radius:10px; color:#fff; font-size:15px; font-weight:600; cursor:pointer;
+  border-radius:12px; color:#fff; font-size:15px; font-weight:600; cursor:pointer;
+  box-shadow:0 4px 12px rgba(29,91,166,0.3);
 }
-.google-btn:hover { background:#1a5296; }
-.google-icon {
-  width:22px; height:22px; background:white; border-radius:50%;
-  display:flex; align-items:center; justify-content:center;
-  font-size:13px; font-weight:700; color:#1D5BA6;
-}
-.login-notice { margin-top:20px; font-size:12px; color:#3A5070; line-height:1.6; }
+.google-icon { width:22px; height:22px; background:white; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; color:#1D5BA6; flex-shrink:0; }
+.login-notice { margin-top:16px; font-size:12px; color:#9AAABF; line-height:1.6; }
 
 /* 권한없음 */
 #denied-screen { align-items:center; justify-content:center; padding:24px; }
-.denied-card {
-  background:#131C2E; border:1px solid #3B1A1A; border-radius:16px;
-  padding:48px 40px; width:100%; max-width:400px; text-align:center;
-}
+.denied-card { background:#fff; border-radius:20px; box-shadow:0 4px 24px rgba(220,38,38,0.08); border:1px solid #FEE2E2; padding:48px 40px; width:100%; max-width:380px; text-align:center; }
 .denied-icon  { font-size:40px; margin-bottom:16px; }
-.denied-title { font-size:18px; font-weight:700; margin-bottom:8px; }
-.denied-sub   { font-size:13px; color:#5C7A9E; margin-bottom:24px; line-height:1.6; }
-.outline-btn  {
-  padding:10px 24px; background:transparent; border:1px solid #3A5070;
-  border-radius:8px; color:#5C7A9E; font-size:13px; cursor:pointer;
-}
+.denied-title { font-size:18px; font-weight:700; color:#1A2540; margin-bottom:8px; }
+.denied-sub   { font-size:13px; color:#5C6F8A; margin-bottom:24px; line-height:1.6; }
+.outline-btn  { padding:10px 24px; background:transparent; border:1px solid #DDE4EF; border-radius:8px; color:#5C6F8A; font-size:13px; cursor:pointer; }
 
 /* 앱 */
 #app-screen { flex-direction:column; }
 .app-header {
-  background:#131C2E; border-bottom:1px solid #1E2D47;
-  padding:0 20px; display:flex; align-items:center;
-  justify-content:space-between; height:56px;
-  position:sticky; top:0; z-index:100;
+  background:#1D5BA6; padding:0 20px; height:56px;
+  display:flex; align-items:center; justify-content:space-between;
+  position:sticky; top:0; z-index:100; box-shadow:0 2px 8px rgba(29,91,166,0.2);
 }
-.header-title { font-size:15px; font-weight:700; }
-.header-sub   { font-size:11px; color:#3A5070; }
-.header-right { display:flex; align-items:center; gap:10px; }
-.user-avatar  {
-  width:32px; height:32px; background:#1D5BA6; border-radius:50%;
-  display:flex; align-items:center; justify-content:center;
-  font-size:13px; font-weight:700;
-}
-.logout-small { font-size:11px; color:#3A5070; cursor:pointer; background:none; border:none; padding:4px 8px; }
+.header-title { font-size:15px; font-weight:800; color:#fff; }
+.header-sub   { font-size:11px; color:rgba(255,255,255,0.6); }
+.user-avatar  { width:32px; height:32px; background:rgba(255,255,255,0.2); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; color:#fff; }
+.logout-small { font-size:11px; color:rgba(255,255,255,0.7); cursor:pointer; background:none; border:none; padding:4px 8px; }
 
 /* 탭 */
-.tab-bar {
-  background:#131C2E; border-bottom:1px solid #1E2D47;
-  display:flex; overflow-x:auto; padding:0 12px; scrollbar-width:none;
-}
+.tab-bar { background:#fff; border-bottom:1px solid #DDE4EF; display:flex; overflow-x:auto; padding:0 12px; box-shadow:0 1px 4px rgba(29,91,166,0.06); scrollbar-width:none; }
 .tab-bar::-webkit-scrollbar { display:none; }
-.tab-btn {
-  flex-shrink:0; padding:14px 14px; font-size:13px; font-weight:500;
-  color:#3A5070; background:none; border:none;
-  border-bottom:2px solid transparent; cursor:pointer; white-space:nowrap;
-}
-.tab-btn.active { color:#5BA4CF; border-bottom-color:#1D5BA6; font-weight:700; }
+.tab-btn { flex-shrink:0; padding:13px 14px; font-size:13px; color:#5C6F8A; background:none; border:none; border-bottom:2px solid transparent; cursor:pointer; white-space:nowrap; font-weight:500; }
+.tab-btn.active { color:#1D5BA6; border-bottom-color:#1D5BA6; font-weight:700; }
 
 /* 콘텐츠 */
 .tab-content { display:none; padding:20px 16px; max-width:520px; margin:0 auto; width:100%; }
 .tab-content.active { display:block; }
+.coming-soon { text-align:center; padding:60px 20px; color:#9AAABF; font-size:14px; line-height:2; }
 
-.coming-soon { text-align:center; padding:60px 20px; color:#3A5070; font-size:14px; line-height:2; }
-.coming-soon .icon { font-size:32px; }
+/* 공정 현황 */
+.month-nav { display:flex; align-items:center; gap:8px; margin-bottom:16px; }
+.nav-btn   { background:#fff; border:1px solid #DDE4EF; color:#1A2540; padding:6px 12px; border-radius:8px; cursor:pointer; font-size:14px; box-shadow:0 1px 4px rgba(29,91,166,0.06); }
+.month-label { font-size:15px; font-weight:700; color:#1A2540; min-width:100px; text-align:center; }
 
-/* 접근 관리 */
-.section-title {
-  font-size:11px; font-weight:700; color:#3A5070;
-  letter-spacing:1px; text-transform:uppercase; margin:20px 0 10px;
-}
-.section-title:first-child { margin-top:0; }
-.user-item {
-  background:#131C2E; border:1px solid #1E2D47; border-radius:10px;
-  padding:14px 16px; display:flex; align-items:center;
-  justify-content:space-between; margin-bottom:8px;
-}
-.user-info { display:flex; flex-direction:column; gap:3px; }
-.user-email { font-size:13px; color:#E8EDF5; font-weight:500; }
-.user-role  { font-size:11px; color:#3A5070; }
-.role-badge { font-size:11px; font-weight:600; padding:3px 10px; border-radius:20px; background:#0D3B6E; color:#5BA4CF; }
-.approve-btn { font-size:12px; font-weight:600; padding:6px 14px; border-radius:6px; border:none; background:#1D5BA6; color:#fff; cursor:pointer; }
-.revoke-btn  { font-size:12px; font-weight:600; padding:6px 14px; border-radius:6px; border:1px solid #3B1A1A; background:transparent; color:#7f4040; cursor:pointer; }
-#no-request  { font-size:13px; color:#3A5070; padding:12px 0; }
+.view-row  { display:flex; align-items:center; gap:8px; margin-bottom:12px; }
+#progress-back { display:none; align-items:center; gap:4px; background:#E8F0FB; border:1px solid #DDE4EF; color:#1D5BA6; padding:5px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:600; }
+#progress-view-title { font-size:13px; font-weight:600; color:#5C6F8A; }
 
-/* 공정율 탭 */
-.prog-header {
-  display:flex; align-items:center; justify-content:space-between;
-  margin-bottom:16px; flex-wrap:wrap; gap:8px;
-}
-.month-nav { display:flex; align-items:center; gap:8px; }
-.month-nav button {
-  background:#131C2E; border:1px solid #1E2D47; color:#E8EDF5;
-  padding:6px 12px; border-radius:6px; cursor:pointer; font-size:14px;
-}
-#progress-month-label { font-size:15px; font-weight:700; min-width:100px; text-align:center; }
+/* 요약 카드 */
+.summary-cards { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:16px; }
+.s-card { background:#fff; border:1px solid #DDE4EF; border-radius:12px; padding:12px 10px; text-align:center; box-shadow:0 1px 4px rgba(29,91,166,0.06); }
+.s-card.blue   { background:#E8F0FB; border-color:#B8D0F0; }
+.s-card.accent { background:#1D5BA6; border-color:#1D5BA6; }
+.s-card.accent .s-val   { color:#fff; }
+.s-card.accent .s-label { color:rgba(255,255,255,0.7); }
+.s-val   { font-size:20px; font-weight:800; color:#1D5BA6; }
+.s-label { font-size:10px; color:#9AAABF; margin-top:2px; }
 
-.prog-view-row {
-  display:flex; align-items:center; gap:8px; margin-bottom:12px;
-}
-#progress-back {
-  display:none; align-items:center; gap:4px;
-  background:transparent; border:1px solid #1E2D47;
-  color:#5BA4CF; padding:5px 10px; border-radius:6px;
-  font-size:12px; cursor:pointer;
-}
-#progress-view-title { font-size:13px; font-weight:600; color:#5C7A9E; }
+/* 테이블 */
+.ptable { width:100%; border-collapse:collapse; font-size:13px; background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 1px 4px rgba(29,91,166,0.06); }
+.ptable th { background:#E8F0FB; color:#1D5BA6; font-size:11px; font-weight:700; padding:9px 8px; text-align:center; border-bottom:1px solid #DDE4EF; }
+.ptable td { padding:10px 8px; text-align:center; border-bottom:1px solid #F0F4FA; color:#1A2540; }
+.clickable { cursor:pointer; }
+.clickable:hover td { background:#F4F7FB; }
+.sum-row td { background:#E8F0FB; font-weight:700; color:#1D5BA6; }
+.td-link { color:#1D5BA6; font-weight:600; text-decoration:underline; }
+.rate-pill { display:inline-block; background:#E8F0FB; color:#1D5BA6; padding:2px 8px; border-radius:10px; font-size:12px; font-weight:700; }
+.rate-pill.accent { background:#1D5BA6; color:#fff; }
+.pos  { color:#16A34A; font-weight:600; }
+.chk  { color:#16A34A; }
+.date-cell { color:#5C6F8A; font-size:12px; }
+.table-hint { font-size:11px; color:#9AAABF; text-align:right; margin-top:6px; }
+.no-data { font-size:13px; color:#9AAABF; padding:24px; text-align:center; }
 
-.prog-table {
-  width:100%; border-collapse:collapse; font-size:13px;
-}
-.prog-table th {
-  background:#131C2E; color:#3A5070; font-size:11px;
-  font-weight:600; padding:8px 10px; text-align:center;
-  border-bottom:1px solid #1E2D47; letter-spacing:0.5px;
-}
-.prog-table td {
-  padding:10px 10px; text-align:center;
-  border-bottom:1px solid #0F1829; color:#C8D5E8;
-}
-.prog-row { cursor:pointer; transition:background 0.15s; }
-.prog-row:hover { background:#131C2E; }
-.sum-row td { background:#0D2035; font-weight:700; color:#E8EDF5; }
-.sector-link { color:#5BA4CF; text-decoration:underline; font-weight:600; }
-.rate-badge {
-  display:inline-block; background:#0D3B6E; color:#5BA4CF;
-  padding:2px 8px; border-radius:10px; font-size:12px; font-weight:700;
-}
-.rate-badge.accent { background:#1D5BA6; color:#fff; }
-.table-hint { font-size:11px; color:#3A5070; text-align:right; margin-top:8px; }
-.no-data { font-size:13px; color:#3A5070; padding:24px; text-align:center; }
-
-#progress-loading {
-  display:none; flex-direction:column; align-items:center;
-  justify-content:center; padding:60px 20px; gap:12px; color:#3A5070;
-}
-.spinner {
-  width:28px; height:28px; border:3px solid #1E2D47;
-  border-top-color:#1D5BA6; border-radius:50%; animation:spin 0.8s linear infinite;
-}
+#progress-loading { display:none; flex-direction:column; align-items:center; justify-content:center; padding:60px 20px; gap:12px; color:#9AAABF; }
+.spinner { width:28px; height:28px; border:3px solid #DDE4EF; border-top-color:#1D5BA6; border-radius:50%; animation:spin 0.8s linear infinite; }
 @keyframes spin { to { transform:rotate(360deg); } }
 </style>
 </head>
@@ -555,106 +395,77 @@ body {
 <!-- 로그인 -->
 <div id="login-screen" class="screen">
   <div class="login-card">
-    <div class="login-badge">Admin Only</div>
-    <div class="login-title">귀뚜라미범양냉방<br>정산도우미</div>
-    <div class="login-sub">승인된 계정만 접근 가능</div>
-    <div class="divider"></div>
+    <div class="login-brand">귀뚜라미범양냉방</div>
+    <div class="login-title">정산도우미</div>
+    <div class="login-bar"></div>
+    <div class="login-sub">승인된 계정만 접근 가능합니다</div>
     <button class="google-btn" onclick="doLogin()">
       <div class="google-icon">G</div>
       Google 계정으로 로그인
     </button>
-    <div class="login-notice">승인되지 않은 계정은<br>로그인 후 접근이 차단됩니다.</div>
+    <div class="login-notice">승인되지 않은 계정은 접근이 차단됩니다</div>
   </div>
 </div>
 
-<!-- 권한 없음 -->
+<!-- 권한없음 -->
 <div id="denied-screen" class="screen">
   <div class="denied-card">
     <div class="denied-icon">🔒</div>
     <div class="denied-title">접근 권한이 없습니다</div>
-    <div class="denied-sub">승인된 계정만 접근할 수 있습니다.<br>관리자에게 접근 권한을 요청하세요.<br><br>로그인 시도가 관리자에게 통보됩니다.</div>
+    <div class="denied-sub">승인된 계정만 접근할 수 있습니다.<br>관리자에게 접근 권한을 요청해 주세요.<br><br>로그인 시도가 자동으로 기록됩니다.</div>
     <button class="outline-btn" onclick="doLogout()">로그아웃</button>
   </div>
 </div>
 
-<!-- 메인 앱 -->
+<!-- 앱 -->
 <div id="app-screen" class="screen">
   <div class="app-header">
     <div>
       <div class="header-title">정산도우미</div>
       <div class="header-sub">귀뚜라미범양냉방</div>
     </div>
-    <div class="header-right">
+    <div style="display:flex;align-items:center;gap:10px;">
       <div class="user-avatar" id="user-initial">?</div>
       <button class="logout-small" onclick="doLogout()">로그아웃</button>
     </div>
   </div>
 
   <div class="tab-bar">
-    <button class="tab-btn active" onclick="switchTab(this,'tab-auth')">👤 접근 관리</button>
-    <button class="tab-btn" onclick="switchTab(this,'tab-progress'); onProgressTabEnter();">📊 공정 현황</button>
+    <button class="tab-btn active" onclick="switchTab(this,'tab-progress');onProgressTabEnter();">📊 공정 현황</button>
     <button class="tab-btn" onclick="switchTab(this,'tab-manday')">🔧 공수 집계</button>
     <button class="tab-btn" onclick="switchTab(this,'tab-invoice')">📄 정산서</button>
     <button class="tab-btn" onclick="switchTab(this,'tab-salary')">💰 급여 관리</button>
   </div>
 
-  <!-- 접근 관리 -->
-  <div class="tab-content active" id="tab-auth">
-    <div class="section-title">승인된 사용자</div>
-    <div id="allowed-list"></div>
-    <div class="section-title">접근 요청 대기</div>
-    <div id="request-list"></div>
-    <div id="no-request">대기 중인 요청이 없습니다.</div>
-  </div>
-
   <!-- 공정 현황 -->
-  <div class="tab-content" id="tab-progress">
-    <div class="prog-header">
-      <div class="month-nav">
-        <button onclick="changeProgressMonth(-1)">◀</button>
-        <span id="progress-month-label">2026년 6월</span>
-        <button onclick="changeProgressMonth(1)">▶</button>
-      </div>
+  <div class="tab-content active" id="tab-progress">
+    <div class="month-nav">
+      <button class="nav-btn" onclick="changeProgressMonth(-1)">◀</button>
+      <span class="month-label" id="progress-month-label">2026년 6월</span>
+      <button class="nav-btn" onclick="changeProgressMonth(1)">▶</button>
     </div>
-    <div class="prog-view-row">
+    <div class="view-row">
       <button id="progress-back" onclick="progressBack()">◀ 뒤로</button>
       <span id="progress-view-title">섹터별 월간 요약</span>
     </div>
-
-    <div id="progress-loading">
-      <div class="spinner"></div>
-      <span>데이터 불러오는 중...</span>
-    </div>
-    <div id="progress-content">
-      <div id="progress-table-wrap"></div>
-    </div>
+    <div id="progress-summary"></div>
+    <div id="progress-loading"><div class="spinner"></div><span>데이터 불러오는 중...</span></div>
+    <div id="progress-content"><div id="progress-table-wrap"></div></div>
   </div>
 
   <!-- 공수 집계 -->
   <div class="tab-content" id="tab-manday">
-    <div class="coming-soon">
-      <div class="icon">🔧</div><br>
-      월간 기술인 공수 집계<br>
-      <span style="font-size:12px;">3단계에서 구현 예정</span>
-    </div>
+    <div class="coming-soon"><div style="font-size:32px">🔧</div><br>월간 기술인 공수 집계<br><span style="font-size:12px">3단계에서 구현 예정</span></div>
   </div>
 
   <!-- 정산서 -->
   <div class="tab-content" id="tab-invoice">
-    <div class="coming-soon">
-      <div class="icon">📄</div><br>
-      거래처 정산서 발행<br>
-      <span style="font-size:12px;">4단계에서 구현 예정</span>
-    </div>
+    <div class="coming-soon"><div style="font-size:32px">📄</div><br>거래처 정산서 발행<br><span style="font-size:12px">4단계에서 구현 예정</span></div>
   </div>
 
   <!-- 급여 관리 -->
   <div class="tab-content" id="tab-salary">
-    <div class="coming-soon">
-      <div class="icon">💰</div><br>
-      직원 급여 관리<br>
-      <span style="font-size:12px;">5단계에서 구현 예정</span>
-    </div>
+    <div class="coming-soon"><div style="font-size:32px">💰</div><br>직원 급여 관리<br><span style="font-size:12px">5단계에서 구현 예정</span></div>
   </div>
 </div>
 
@@ -663,13 +474,17 @@ function showScreen(name) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(name+'-screen').classList.add('active');
 }
-
 function switchTab(btn, tabId) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
   document.getElementById(tabId).classList.add('active');
 }
+// 앱 진입 시 공정 현황 자동 로드
+window.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('progress-month-label').textContent =
+    `${new Date().getFullYear()}년 ${new Date().getMonth()+1}월`;
+});
 </script>
 </body>
 </html>
