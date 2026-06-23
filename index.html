@@ -882,6 +882,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
 
 
+
 function calcAnnualSalary(hourly, empType) {
   if (!hourly) return { basic:0, fixedOt:0, fixedNight:0, weekly:0, total:0, annual:0 };
   const h = Number(hourly);
@@ -2077,7 +2078,7 @@ async function getWorkersList() {
 // 👥 근로자 명부
 // ════════════════════════════════
 let rosterView = 'main'; // main | register | list
-let rosterForm = { name:'', jumin:'', phone:'', address:'', dept:'', rank:'', job:'', empType:'', hireDate:'' };
+let rosterForm = { name:'', jumin:'', phone:'', address:'', dept:'', rank:'', job:'', empType:'', hireDate:'', bankAccount:'' };
 
 window.renderRosterMain = () => {
   const el = document.getElementById('tab-roster');
@@ -2128,6 +2129,7 @@ window.renderRosterRegister = () => {
       </select>`)}
       ${field2('최초 입사일', `<input type="date" onchange="rosterForm.hireDate=this.value" ${inp2Style}>`)}
       ${field2('담당업무', `<input type="text" placeholder="담당 업무 입력" oninput="rosterForm.job=this.value" ${inp2Style}>`)}
+      ${field2('계좌번호', `<input type="text" placeholder="예: 국민은행 123-456-7890" oninput="rosterForm.bankAccount=this.value" ${inp2Style}>`)}
     `)}
     <button onclick="rosterSave()" style="width:100%;padding:13px;background:${C2.green};border:none;border-radius:12px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;">✅ 등록 완료</button>
   `);
@@ -2152,7 +2154,7 @@ window.rosterSave = async () => {
     const snap = await getDocs(collection(window._db, 'workers'));
     const nums = []; snap.forEach(d=>{const n=parseInt(d.data().empNo||'0');if(n)nums.push(n);});
     const nextNo = String((nums.length?Math.max(...nums):0)+1).padStart(3,'0');
-    await setDoc(doc(window._db,'workers',wid), { ...rosterForm, empNo:nextNo, registeredAt:new Date().toISOString(), hireDate:rosterForm.hireDate||'' });
+    await setDoc(doc(window._db,'workers',wid), { ...rosterForm, empNo:nextNo, registeredAt:new Date().toISOString(), hireDate:rosterForm.hireDate||'', bankAccount:rosterForm.bankAccount||'' });
     alert(`✅ 등록 완료! 사원번호: ${nextNo}`);
     renderRosterMain();
   } catch(e) { alert('오류: '+e.message); }
@@ -2364,6 +2366,7 @@ window.rosterDetail = (id) => {
           {label:'주민번호', key:'jumin', type:'text', val:d.jumin||''},
           {label:'휴대폰', key:'phone', type:'text', val:d.phone||''},
           {label:'주소', key:'address', type:'text', val:d.address||''},
+          {label:'계좌번호', key:'bankAccount', type:'text', val:d.bankAccount||''},
         ].map(f=>`
           <div style="display:flex;align-items:center;padding:6px 0;border-bottom:1px solid #DDE4EF;gap:8px;">
             <span style="color:#5C6F8A;font-weight:600;min-width:68px;font-size:12px;flex-shrink:0;">${f.label}</span>
@@ -2443,6 +2446,7 @@ let laborView2 = 'main';
 let laborForm2 = { workerId:'', name:'', jumin:'', phone:'', address:'', dept:'', rank:'', job:'', empType:'field', startDate:'', endDate:'', contractDate:'', hourly:'', salary:'', signData:null };
 let laborSelectedWorker2 = null;
 let laborSignCanvas2 = null, laborSignDrawing2 = false;
+
 
 
 </script>
