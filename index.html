@@ -343,12 +343,28 @@
     // 열 너비
     const wscols = [{wch:14}];
     for (let i=0; i<daysInMonth; i++) wscols.push({wch:5});
-    wscols.push({wch:8}, {wch:9});
+    wscols.push({wch:8}, {wch:10});
     ws['!cols'] = wscols;
 
+    // 회계 서식 (₩ 기호 포함) 적용
+    // 팀단가 행, 지급계 행의 마지막 열에 적용
+    const totalRows = rows.length;
+    const lastCol = daysInMonth + 2; // 공수합계 열 인덱스 (0-based)
+    const acctFmt = '_("₩"* #,##0_);_("₩"* (#,##0);_("₩"* "-"_);_(@_)';
+
+    // 팀단가 행 = totalRows - 2 (0-based), 지급계 행 = totalRows - 1
+    [totalRows - 2, totalRows - 1].forEach(rowIdx => {
+      const cellAddr = XLSX.utils.encode_cell({r: rowIdx, c: lastCol});
+      if (ws[cellAddr]) {
+        if (!ws[cellAddr].s) ws[cellAddr].s = {};
+        ws[cellAddr].z = acctFmt;
+      }
+    });
+
+    // 스타일 적용을 위해 write 옵션에 cellStyles 추가
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '공수집계');
-    XLSX.writeFile(wb, `${year}년${String(month).padStart(2,'0')}월_공수집계표.xlsx`);
+    XLSX.writeFile(wb, `${year}년${String(month).padStart(2,'0')}월_공수집계표.xlsx`, {cellStyles: true});
   };
   function renderMandayTable(totals, totalMd, workDayCount, daysInMonth) {
     // 요약 카드
