@@ -691,9 +691,13 @@ body { font-family:-apple-system,'Apple SD Gothic Neo','Pretendard',sans-serif; 
 <!-- 앱 -->
 <div id="app-screen" class="screen">
   <div class="app-header">
-    <div>
-      <div class="header-title">정산도우미</div>
-      <div class="header-sub">귀뚜라미범양냉방</div>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <button id="back-to-section" onclick="showSectionSelect()"
+        style="display:none;background:rgba(255,255,255,0.15);border:none;border-radius:8px;padding:6px 10px;color:#fff;font-size:16px;cursor:pointer;line-height:1;">‹</button>
+      <div>
+        <div class="header-title" id="header-title">정산도우미</div>
+        <div class="header-sub">귀뚜라미범양냉방</div>
+      </div>
     </div>
     <div style="display:flex;align-items:center;gap:10px;">
       <div class="user-avatar" id="user-initial">?</div>
@@ -701,12 +705,55 @@ body { font-family:-apple-system,'Apple SD Gothic Neo','Pretendard',sans-serif; 
     </div>
   </div>
 
-  <div class="tab-bar">
-    <button class="tab-btn active" onclick="switchTab(this,'tab-progress');onProgressTabEnter();">📊 공정 현황</button>
-    <button class="tab-btn" onclick="switchTab(this,'tab-manday');onMandayTabEnter();">🔧 공수 집계</button>
-    <button class="tab-btn" onclick="switchTab(this,'tab-invoice');onInvoiceTabEnter();">📄 정산서</button>
-    <button class="tab-btn" onclick="switchTab(this,'tab-labor');renderLaborTab();">📝 근로계약서</button>
-    <button class="tab-btn" onclick="switchTab(this,'tab-salary')">💰 급여 관리</button>
+  <!-- 섹션 선택 화면 -->
+  <div id="section-select" style="display:none;padding:28px 16px;max-width:480px;margin:0 auto;">
+    <div style="font-size:13px;color:#5C6F8A;margin-bottom:16px;font-weight:600;">섹션을 선택해 주세요</div>
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <button onclick="enterSection('planning')"
+        style="background:#fff;border:1px solid #DDE4EF;border-radius:16px;padding:20px;text-align:left;cursor:pointer;box-shadow:0 1px 4px rgba(29,91,166,0.08);display:flex;align-items:center;gap:16px;">
+        <div style="width:52px;height:52px;background:#E8F0FB;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;">📊</div>
+        <div style="flex:1;">
+          <div style="font-size:17px;font-weight:800;color:#1A2540;margin-bottom:3px;">기획</div>
+          <div style="font-size:12px;color:#5C6F8A;margin-bottom:8px;">공정·공수·정산 관리</div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap;">
+            <span style="font-size:10px;background:#E8F0FB;color:#1D5BA6;padding:2px 8px;border-radius:10px;font-weight:600;">📈 공정 현황</span>
+            <span style="font-size:10px;background:#E8F0FB;color:#1D5BA6;padding:2px 8px;border-radius:10px;font-weight:600;">🔧 공수 집계</span>
+            <span style="font-size:10px;background:#E8F0FB;color:#1D5BA6;padding:2px 8px;border-radius:10px;font-weight:600;">📄 정산서</span>
+            <span style="font-size:10px;background:#E8F0FB;color:#1D5BA6;padding:2px 8px;border-radius:10px;font-weight:600;">💼 잔금 관리</span>
+          </div>
+        </div>
+        <div style="font-size:20px;color:#9AAABF;">›</div>
+      </button>
+      <button onclick="enterSection('hr')"
+        style="background:#fff;border:1px solid #DDE4EF;border-radius:16px;padding:20px;text-align:left;cursor:pointer;box-shadow:0 1px 4px rgba(29,91,166,0.08);display:flex;align-items:center;gap:16px;">
+        <div style="width:52px;height:52px;background:#E8F0FB;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;">👥</div>
+        <div style="flex:1;">
+          <div style="font-size:17px;font-weight:800;color:#1A2540;margin-bottom:3px;">인사</div>
+          <div style="font-size:12px;color:#5C6F8A;margin-bottom:8px;">계약·급여 관리</div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap;">
+            <span style="font-size:10px;background:#E8F0FB;color:#1D5BA6;padding:2px 8px;border-radius:10px;font-weight:600;">📝 근로계약서</span>
+            <span style="font-size:10px;background:#E8F0FB;color:#1D5BA6;padding:2px 8px;border-radius:10px;font-weight:600;">📋 연봉계약서</span>
+            <span style="font-size:10px;background:#E8F0FB;color:#1D5BA6;padding:2px 8px;border-radius:10px;font-weight:600;">💰 급여명세서</span>
+          </div>
+        </div>
+        <div style="font-size:20px;color:#9AAABF;">›</div>
+      </button>
+    </div>
+  </div>
+
+  <!-- 기획 탭바 -->
+  <div id="tabbar-planning" class="tab-bar" style="display:none;">
+    <button class="tab-btn active" id="tb-progress" onclick="switchTab(this,'tab-progress');onProgressTabEnter();">📈 공정 현황</button>
+    <button class="tab-btn" id="tb-manday"   onclick="switchTab(this,'tab-manday');onMandayTabEnter();">🔧 공수 집계</button>
+    <button class="tab-btn" id="tb-invoice"  onclick="switchTab(this,'tab-invoice');onInvoiceTabEnter();">📄 정산서</button>
+    <button class="tab-btn" id="tb-balance"  onclick="switchTab(this,'tab-balance');">💼 잔금 관리</button>
+  </div>
+
+  <!-- 인사 탭바 -->
+  <div id="tabbar-hr" class="tab-bar" style="display:none;">
+    <button class="tab-btn active" id="tb-labor"   onclick="switchTab(this,'tab-labor');renderLaborTab();">📝 근로계약서</button>
+    <button class="tab-btn" id="tb-annual"          onclick="switchTab(this,'tab-annual');">📋 연봉계약서</button>
+    <button class="tab-btn" id="tb-payslip"         onclick="switchTab(this,'tab-payslip');">💰 급여명세서</button>
   </div>
 
   <!-- 공정 현황 -->
@@ -752,9 +799,19 @@ body { font-family:-apple-system,'Apple SD Gothic Neo','Pretendard',sans-serif; 
   <!-- 근로계약서 -->
   <div class="tab-content" id="tab-labor"></div>
 
-  <!-- 급여 관리 -->
-  <div class="tab-content" id="tab-salary">
-    <div class="coming-soon"><div style="font-size:32px">💰</div><br>직원 급여 관리<br><span style="font-size:12px">5단계에서 구현 예정</span></div>
+  <!-- 잔금 관리 -->
+  <div class="tab-content" id="tab-balance">
+    <div class="coming-soon"><div style="font-size:32px">💼</div><br>잔금 관리<br><span style="font-size:12px;color:#9AAABF;">추후 구현 예정</span></div>
+  </div>
+
+  <!-- 연봉계약서 -->
+  <div class="tab-content" id="tab-annual">
+    <div class="coming-soon"><div style="font-size:32px">📋</div><br>연봉계약서<br><span style="font-size:12px;color:#9AAABF;">추후 구현 예정</span></div>
+  </div>
+
+  <!-- 급여명세서 -->
+  <div class="tab-content" id="tab-payslip">
+    <div class="coming-soon"><div style="font-size:32px">💰</div><br>급여명세서<br><span style="font-size:12px;color:#9AAABF;">추후 구현 예정</span></div>
   </div>
 </div>
 
@@ -762,17 +819,60 @@ body { font-family:-apple-system,'Apple SD Gothic Neo','Pretendard',sans-serif; 
 function showScreen(name) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(name+'-screen').classList.add('active');
+  if (name === 'app') showSectionSelect();
 }
+
+function showSectionSelect() {
+  // 섹션 선택 화면 표시
+  document.getElementById('section-select').style.display = 'block';
+  document.getElementById('tabbar-planning').style.display = 'none';
+  document.getElementById('tabbar-hr').style.display = 'none';
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.getElementById('back-to-section').style.display = 'none';
+  document.getElementById('header-title').textContent = '정산도우미';
+}
+
+function enterSection(section) {
+  document.getElementById('section-select').style.display = 'none';
+  document.getElementById('back-to-section').style.display = 'flex';
+
+  if (section === 'planning') {
+    document.getElementById('header-title').textContent = '📊 기획';
+    document.getElementById('tabbar-planning').style.display = 'flex';
+    document.getElementById('tabbar-hr').style.display = 'none';
+    // 공정 현황 탭 활성화
+    document.querySelectorAll('#tabbar-planning .tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tb-progress').classList.add('active');
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.getElementById('tab-progress').classList.add('active');
+    onProgressTabEnter();
+  } else {
+    document.getElementById('header-title').textContent = '👥 인사';
+    document.getElementById('tabbar-hr').style.display = 'flex';
+    document.getElementById('tabbar-planning').style.display = 'none';
+    // 근로계약서 탭 활성화
+    document.querySelectorAll('#tabbar-hr .tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tb-labor').classList.add('active');
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.getElementById('tab-labor').classList.add('active');
+    renderLaborTab();
+  }
+}
+
 function switchTab(btn, tabId) {
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  // 현재 활성 탭바에서만 active 처리
+  const activeBar = document.getElementById('tabbar-planning').style.display !== 'none'
+    ? document.getElementById('tabbar-planning')
+    : document.getElementById('tabbar-hr');
+  activeBar.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
   document.getElementById(tabId).classList.add('active');
 }
-// 앱 진입 시 공정 현황 자동 로드
+
 window.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('progress-month-label').textContent =
-    `${new Date().getFullYear()}년 ${new Date().getMonth()+1}월`;
+  const ml = document.getElementById('progress-month-label');
+  if (ml) ml.textContent = `${new Date().getFullYear()}년 ${new Date().getMonth()+1}월`;
 });
 </script>
 
