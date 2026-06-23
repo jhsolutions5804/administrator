@@ -542,6 +542,507 @@
     if (progressView === 'device' && selectedSector) showDayView(selectedSector);
     else renderProgressMonth();
   };
+
+  // ── 정산서 ──
+  const STAMP_KIM = "data:image/png;base64,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";
+
+  const INVOICE_COMPANIES = [
+    { value:'darim',  company:'다람이엔지',       name:'현병찬', email:'skyhbc@naver.com',      tel:'010-8363-1085' },
+    { value:'jheng',  company:'제이에이치이엔지',  name:'김영희', email:'butterfly313@naver.com', tel:'010-3735-7891' },
+    { value:'jhsol',  company:'제이에이치솔루션',  name:'김종화', email:'jh.kim@jhsol.kr',        tel:'010-6650-5804' },
+    { value:'sj',     company:'에스제이',           name:'서민우', email:'seoyo20@naver.com',      tel:'010-8456-1098' },
+  ];
+
+  const INVOICE_ISSUERS = [
+    { value:'jheng_kim', company:'제이에이치이엔지', name:'김영희', stamp: STAMP_KIM },
+    { value:'jhsol_kim', company:'제이에이치솔루션', name:'김종화', stamp: null },
+  ];
+
+  const INVOICE_SECTORS = [
+    { id:'fiz', name:'3F FIZ',       qty:39,  estimate:77000000  },
+    { id:'xob', name:'X-OB',         qty:19,  estimate:37650000  },
+    { id:'c4',  name:'복합4동',       qty:14,  estimate:27400000  },
+    { id:'c3',  name:'복합3동',       qty:14,  estimate:28150000  },
+    { id:'wob', name:'W-OB',         qty:81,  estimate:162550000 },
+    { id:'mfr', name:'2F 제조부속실', qty:16,  estimate:28000000  },
+  ];
+
+  const INVOICE_TEAM_RATE = 190000;
+
+  // 정산서 상태
+  let inv = {
+    docType:   'invoice',
+    payerKey:  'darim',
+    payeeKey:  'jheng',
+    docDate:   new Date().toISOString().slice(0,10),
+    docMonth:  new Date().toISOString().slice(0,7),
+    dueDate:   '',
+    issuerKey: 'jheng_kim',
+    estimates: Object.fromEntries(INVOICE_SECTORS.map(s=>[s.id, s.estimate])),
+    banips:    Object.fromEntries(INVOICE_SECTORS.map(s=>[s.id, 0])),
+    installs:  Object.fromEntries(INVOICE_SECTORS.map(s=>[s.id, 0])),
+    deposits:  Object.fromEntries(INVOICE_SECTORS.map(s=>[s.id, false])),
+    manday:    0,
+    balances:  Object.fromEntries(INVOICE_SECTORS.map(s=>[s.id, s.estimate])),
+  };
+
+  const invWon = v => v !== null && v !== undefined ? '₩'+Math.round(v).toLocaleString() : '-';
+
+  window.onInvoiceTabEnter = () => { renderInvoiceTab(); };
+
+  // 기준월 변경 시 공정/공수 자동 연동
+  window.invChangeMonth = async (month) => {
+    inv.docMonth = month;
+    // 공정 실적 연동
+    const daysInMonth = new Date(month.split('-')[0], month.split('-')[1], 0).getDate();
+    const newBanips = Object.fromEntries(INVOICE_SECTORS.map(s=>[s.id, 0]));
+    const newInstalls = Object.fromEntries(INVOICE_SECTORS.map(s=>[s.id, 0]));
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateKey = `${month}-${String(d).padStart(2,'0')}`;
+      for (const s of INVOICE_SECTORS) {
+        try {
+          const snap = await getDoc(doc(db, `progress_checks_${dateKey}`, s.id));
+          if (snap.exists()) {
+            const checks = snap.data();
+            s.devices && s.devices.forEach(dev => {
+              if (checks[`${dev}_반입`] === true || checks[`${dev}_반입`] === 1) newBanips[s.id]++;
+            });
+          }
+        } catch(e) {}
+      }
+    }
+    // PAST 데이터도 반영
+    Object.entries(PAST_PROGRESS_DAILY).forEach(([dateKey, dayData]) => {
+      if (!dateKey.startsWith(month)) return;
+      INVOICE_SECTORS.forEach(s => {
+        if (!dayData[s.id]) return;
+        Object.keys(dayData[s.id]).forEach(k => {
+          if (k.endsWith('_반입')) newBanips[s.id]++;
+        });
+      });
+    });
+
+    inv.banips  = newBanips;
+    inv.installs = newInstalls;
+
+    // 공수 연동
+    const monthTotals = {};
+    WORKERS.forEach(w => { monthTotals[w.id] = 0; });
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dateKey = `${month}-${String(d).padStart(2,'0')}`;
+      try {
+        const snap = await getDoc(doc(db, 'worker_manday', dateKey));
+        if (snap.exists()) {
+          const md = snap.data().md || {};
+          Object.entries(md).forEach(([wid, val]) => {
+            if (monthTotals[wid] !== undefined) monthTotals[wid] += val;
+          });
+        }
+      } catch(e) {}
+    }
+    inv.manday = Object.values(monthTotals).reduce((a,b)=>a+b, 0);
+
+    // 잔금 연동 (Firebase invoice_history에서)
+    for (const s of INVOICE_SECTORS) {
+      try {
+        const snap = await getDoc(doc(db, 'invoice_history', s.id));
+        if (snap.exists()) {
+          const hist = snap.data();
+          const cum = Object.entries(hist)
+            .filter(([m]) => m < month)
+            .reduce((a,[,r]) => a+(r.bill||0), 0);
+          inv.balances[s.id] = (inv.estimates[s.id]||0) - cum;
+        } else {
+          inv.balances[s.id] = inv.estimates[s.id]||0;
+        }
+      } catch(e) { inv.balances[s.id] = inv.estimates[s.id]||0; }
+    }
+
+    renderInvoiceTab();
+  };
+
+  // 발행 확정 → Firebase 저장
+  window.invConfirm = async () => {
+    if (!confirm('이 정산서를 확정하시겠습니까?\n확정 후 잔금 관리 탭에 자동 반영됩니다.')) return;
+
+    if (inv.docType === 'invoice') {
+      for (const s of INVOICE_SECTORS) {
+        const est  = inv.estimates[s.id]||0;
+        const b    = inv.banips[s.id]||0;
+        const ins  = inv.installs[s.id]||0;
+        const dep  = inv.deposits[s.id];
+        const banipAmt   = Math.round(est*0.8*(b/s.qty));
+        const installAmt = Math.round(est*0.2*(ins/s.qty));
+        const depositAmt = dep ? Math.round(est*0.1) : 0;
+        const bill = banipAmt + installAmt + depositAmt;
+        if (bill === 0) continue;
+        const ref = doc(db, 'invoice_history', s.id);
+        const snap = await getDoc(ref);
+        const existing = snap.exists() ? snap.data() : {};
+        existing[inv.docMonth] = { banip:banipAmt, install:installAmt, deposit:depositAmt, bill, memo:`${inv.docMonth} 발행` };
+        await setDoc(ref, existing);
+      }
+    } else {
+      const payTotal = Math.round(inv.manday * INVOICE_TEAM_RATE);
+      const ref = doc(db, 'payment_history', inv.docMonth);
+      await setDoc(ref, { manday:inv.manday, amount:payTotal, payerKey:inv.payerKey, payeeKey:inv.payeeKey, dueDate:inv.dueDate });
+    }
+    alert('✅ 발행 확정되었습니다. 잔금 관리 탭에 반영됩니다.');
+  };
+
+  function invCalc() {
+    const rows = INVOICE_SECTORS.map(s => {
+      const est        = inv.estimates[s.id]||0;
+      const b          = inv.banips[s.id]||0;
+      const ins        = inv.installs[s.id]||0;
+      const banipAmt   = Math.round(est*0.8*(b/s.qty));
+      const installAmt = Math.round(est*0.2*(ins/s.qty));
+      const depositAmt = Math.round(est*0.1);
+      const incDep     = inv.deposits[s.id];
+      const billAmt    = banipAmt + installAmt + (incDep ? depositAmt : 0);
+      const balance    = inv.balances[s.id] !== undefined ? inv.balances[s.id] : est;
+      return { ...s, b, ins, est, banipAmt, installAmt, depositAmt, incDep, billAmt, balance };
+    });
+    const totalBill  = rows.reduce((a,r)=>a+r.billAmt,0);
+    const totalVat   = Math.round(totalBill*0.1);
+    const totalCharge= totalBill+totalVat;
+    const payTotal   = Math.round(inv.manday*INVOICE_TEAM_RATE);
+    const payVat     = Math.round(payTotal*0.1);
+    const payGrand   = payTotal+payVat;
+    return { rows, totalBill, totalVat, totalCharge, payTotal, payVat, payGrand };
+  }
+
+  function renderInvoiceTab() {
+    const el = document.getElementById('tab-invoice');
+    if (!el) return;
+    const payer  = INVOICE_COMPANIES.find(c=>c.value===inv.payerKey);
+    const payee  = INVOICE_COMPANIES.find(c=>c.value===inv.payeeKey);
+    const issuer = INVOICE_ISSUERS.find(i=>i.value===inv.issuerKey);
+    const { rows, totalBill, totalVat, totalCharge, payTotal, payVat, payGrand } = invCalc();
+    const [y,m] = inv.docMonth.split('-');
+
+    const coOptions = INVOICE_COMPANIES.map(c=>`<option value="${c.value}" ${inv.payerKey===c.value?'selected':''}>${c.company}</option>`).join('');
+    const coOptions2= INVOICE_COMPANIES.map(c=>`<option value="${c.value}" ${inv.payeeKey===c.value?'selected':''}>${c.company}</option>`).join('');
+    const issuerOpts= INVOICE_ISSUERS.map(i=>`<option value="${i.value}" ${inv.issuerKey===i.value?'selected':''}>${i.company} ${i.name}</option>`).join('');
+
+    const invoiceRows = rows.map((r,i)=>`
+      <tr style="background:${i%2===0?'#fff':'#F8FAFD'}">
+        <td style="padding:8px 6px;border-bottom:1px solid #F0F4FA;font-weight:600;font-size:12px;">${r.name}</td>
+        <td style="padding:8px 6px;border-bottom:1px solid #F0F4FA;text-align:center;font-size:12px;">${r.qty}대</td>
+        <td style="padding:8px 6px;border-bottom:1px solid #F0F4FA;text-align:right;font-size:12px;color:#5C6F8A;">${invWon(r.balance)}</td>
+        <td style="padding:8px 6px;border-bottom:1px solid #F0F4FA;text-align:center;">
+          <input type="number" value="${r.b}" onchange="inv.banips['${r.id}']=Number(this.value);renderInvoiceTab();"
+            style="width:50px;border:1px solid #DDE4EF;border-radius:5px;padding:3px 4px;font-size:11px;text-align:center;"/>
+        </td>
+        <td style="padding:8px 6px;border-bottom:1px solid #F0F4FA;text-align:right;font-size:12px;color:${r.banipAmt>0?'#1D5BA6':'#9AAABF'}">${r.banipAmt>0?invWon(r.banipAmt):'-'}</td>
+        <td style="padding:8px 6px;border-bottom:1px solid #F0F4FA;text-align:center;">
+          <input type="number" value="${r.ins}" onchange="inv.installs['${r.id}']=Number(this.value);renderInvoiceTab();"
+            style="width:50px;border:1px solid #DDE4EF;border-radius:5px;padding:3px 4px;font-size:11px;text-align:center;"/>
+        </td>
+        <td style="padding:8px 6px;border-bottom:1px solid #F0F4FA;text-align:right;font-size:12px;color:${r.installAmt>0?'#1D5BA6':'#9AAABF'}">${r.installAmt>0?invWon(r.installAmt):'-'}</td>
+        <td style="padding:8px 6px;border-bottom:1px solid #F0F4FA;text-align:center;">
+          <label style="display:flex;align-items:center;justify-content:center;gap:4px;cursor:pointer;">
+            <input type="checkbox" ${r.incDep?'checked':''} onchange="inv.deposits['${r.id}']=this.checked;renderInvoiceTab();"
+              style="width:14px;height:14px;accent-color:#1D5BA6;cursor:pointer;"/>
+            <span style="font-size:11px;color:${r.incDep?'#1D5BA6':'#9AAABF'}">${invWon(r.depositAmt)}</span>
+          </label>
+        </td>
+        <td style="padding:8px 6px;border-bottom:1px solid #F0F4FA;text-align:right;font-weight:700;font-size:12px;color:${r.billAmt>0?'#1D5BA6':'#9AAABF'};background:#EEF4FC;">${r.billAmt>0?invWon(r.billAmt):'-'}</td>
+      </tr>`).join('');
+
+    el.innerHTML = `
+      <div style="padding:16px;max-width:560px;margin:0 auto;">
+
+        <!-- 정산서 종류 -->
+        <div style="background:#fff;border-radius:10px;border:1px solid #DDE4EF;padding:12px 14px;margin-bottom:10px;">
+          <div style="font-size:10px;color:#5C6F8A;font-weight:700;margin-bottom:8px;letter-spacing:1px;">정산서 종류</div>
+          <div style="display:flex;gap:8px;">
+            <button onclick="inv.docType='invoice';renderInvoiceTab();"
+              style="flex:1;padding:9px;border-radius:8px;border:2px solid ${inv.docType==='invoice'?'#1D5BA6':'#DDE4EF'};background:${inv.docType==='invoice'?'#E8F0FB':'#fff'};color:${inv.docType==='invoice'?'#1D5BA6':'#5C6F8A'};font-weight:700;font-size:13px;cursor:pointer;">
+              📄 대금청구서
+            </button>
+            <button onclick="inv.docType='payment';renderInvoiceTab();"
+              style="flex:1;padding:9px;border-radius:8px;border:2px solid ${inv.docType==='payment'?'#1D5BA6':'#DDE4EF'};background:${inv.docType==='payment'?'#E8F0FB':'#fff'};color:${inv.docType==='payment'?'#1D5BA6':'#5C6F8A'};font-weight:700;font-size:13px;cursor:pointer;">
+              📄 지급예정서
+            </button>
+          </div>
+        </div>
+
+        <!-- 지급처/수령처 -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+          <div style="background:#fff;border-radius:10px;border:1px solid #DDE4EF;padding:10px 12px;">
+            <div style="font-size:10px;color:#5C6F8A;font-weight:700;margin-bottom:6px;">지급처</div>
+            <select onchange="inv.payerKey=this.value;renderInvoiceTab();"
+              style="width:100%;padding:6px 8px;border-radius:7px;border:1px solid #DDE4EF;font-size:12px;font-weight:600;color:#1D5BA6;background:#E8F0FB;cursor:pointer;">${coOptions}</select>
+            ${(()=>{const c=INVOICE_COMPANIES.find(x=>x.value===inv.payerKey);return`<div style="margin-top:8px;padding-top:8px;border-top:1px dashed #DDE4EF;font-size:11px;color:#1A2540;font-weight:600;">${c.name}</div><div style="font-size:11px;color:#5C6F8A;">${c.tel}</div>`;}())}
+          </div>
+          <div style="background:#fff;border-radius:10px;border:1px solid #DDE4EF;padding:10px 12px;">
+            <div style="font-size:10px;color:#5C6F8A;font-weight:700;margin-bottom:6px;">수령처</div>
+            <select onchange="inv.payeeKey=this.value;renderInvoiceTab();"
+              style="width:100%;padding:6px 8px;border-radius:7px;border:1px solid #DDE4EF;font-size:12px;font-weight:600;color:#1D5BA6;background:#E8F0FB;cursor:pointer;">${coOptions2}</select>
+            ${(()=>{const c=INVOICE_COMPANIES.find(x=>x.value===inv.payeeKey);return`<div style="margin-top:8px;padding-top:8px;border-top:1px dashed #DDE4EF;font-size:11px;color:#1A2540;font-weight:600;">${c.name}</div><div style="font-size:11px;color:#5C6F8A;">${c.tel}</div>`;}())}
+          </div>
+        </div>
+
+        <!-- 날짜 -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+          <div style="background:#fff;border-radius:10px;border:1px solid #DDE4EF;padding:10px 12px;">
+            <div style="font-size:10px;color:#5C6F8A;font-weight:700;margin-bottom:6px;">기준월</div>
+            <input type="month" value="${inv.docMonth}" onchange="invChangeMonth(this.value);"
+              style="width:100%;border:1px solid #DDE4EF;border-radius:6px;padding:5px 6px;font-size:11px;"/>
+          </div>
+          ${inv.docType==='invoice'?`
+          <div style="background:#fff;border-radius:10px;border:1px solid #DDE4EF;padding:10px 12px;">
+            <div style="font-size:10px;color:#5C6F8A;font-weight:700;margin-bottom:6px;">발행일</div>
+            <input type="date" value="${inv.docDate}" onchange="inv.docDate=this.value;renderInvoiceTab();"
+              style="width:100%;border:1px solid #DDE4EF;border-radius:6px;padding:5px 6px;font-size:11px;"/>
+          </div>`:`
+          <div style="background:#fff;border-radius:10px;border:1px solid #DDE4EF;padding:10px 12px;">
+            <div style="font-size:10px;color:#5C6F8A;font-weight:700;margin-bottom:6px;">지급예정일</div>
+            <input type="date" value="${inv.dueDate}" onchange="inv.dueDate=this.value;renderInvoiceTab();"
+              style="width:100%;border:1px solid #DDE4EF;border-radius:6px;padding:5px 6px;font-size:11px;"/>
+          </div>`}
+        </div>
+
+        <!-- 발행인 선택 -->
+        <div style="background:#fff;border-radius:10px;border:1px solid #DDE4EF;padding:12px 14px;margin-bottom:10px;">
+          <div style="font-size:10px;color:#5C6F8A;font-weight:700;margin-bottom:8px;letter-spacing:1px;">발행인</div>
+          <div style="display:flex;gap:8px;">
+            ${INVOICE_ISSUERS.map(iss=>`
+              <button onclick="inv.issuerKey='${iss.value}';renderInvoiceTab();"
+                style="flex:1;padding:8px;border-radius:8px;border:2px solid ${inv.issuerKey===iss.value?'#1D5BA6':'#DDE4EF'};background:${inv.issuerKey===iss.value?'#E8F0FB':'#fff'};color:${inv.issuerKey===iss.value?'#1D5BA6':'#5C6F8A'};font-weight:700;font-size:11px;cursor:pointer;">
+                ${iss.company}<br/><span style="font-weight:400;">${iss.name}</span>
+              </button>`).join('')}
+          </div>
+        </div>
+
+        ${inv.docType==='invoice'?`
+        <!-- 대금청구서 내역 -->
+        <div style="font-size:12px;font-weight:700;color:#5C6F8A;margin-bottom:6px;">섹터별 청구 내역</div>
+        <div style="background:#fff;border-radius:12px;border:1px solid #DDE4EF;overflow:auto;margin-bottom:10px;">
+          <table style="width:100%;border-collapse:collapse;min-width:580px;">
+            <thead>
+              <tr>
+                <th style="background:#E8F0FB;color:#1D5BA6;font-size:11px;font-weight:700;padding:8px 6px;text-align:left;border-bottom:1px solid #DDE4EF;">섹터</th>
+                <th style="background:#E8F0FB;color:#1D5BA6;font-size:11px;font-weight:700;padding:8px 6px;text-align:center;border-bottom:1px solid #DDE4EF;">물량</th>
+                <th style="background:#E8F0FB;color:#1D5BA6;font-size:11px;font-weight:700;padding:8px 6px;text-align:center;border-bottom:1px solid #DDE4EF;">잔금</th>
+                <th style="background:#E8F0FB;color:#1D5BA6;font-size:11px;font-weight:700;padding:8px 6px;text-align:center;border-bottom:1px solid #DDE4EF;">반입</th>
+                <th style="background:#E8F0FB;color:#1D5BA6;font-size:11px;font-weight:700;padding:8px 6px;text-align:center;border-bottom:1px solid #DDE4EF;">반입금액(80%)</th>
+                <th style="background:#E8F0FB;color:#1D5BA6;font-size:11px;font-weight:700;padding:8px 6px;text-align:center;border-bottom:1px solid #DDE4EF;">설치</th>
+                <th style="background:#E8F0FB;color:#1D5BA6;font-size:11px;font-weight:700;padding:8px 6px;text-align:center;border-bottom:1px solid #DDE4EF;">설치금액(20%)</th>
+                <th style="background:#E8F0FB;color:#1D5BA6;font-size:11px;font-weight:700;padding:8px 6px;text-align:center;border-bottom:1px solid #DDE4EF;">보증금(10%)</th>
+                <th style="background:#dce8f8;color:#1D5BA6;font-size:11px;font-weight:700;padding:8px 6px;text-align:center;border-bottom:1px solid #DDE4EF;">설치비</th>
+              </tr>
+            </thead>
+            <tbody>${invoiceRows}</tbody>
+            <tfoot>
+              <tr style="background:#E8F0FB;">
+                <td colspan="8" style="padding:9px 6px;text-align:right;font-weight:700;color:#1D5BA6;font-size:13px;">청구금액</td>
+                <td style="padding:9px 6px;text-align:right;font-weight:700;color:#1D5BA6;font-size:13px;background:#dce8f8;">${invWon(totalBill)}</td>
+              </tr>
+              <tr>
+                <td colspan="8" style="padding:8px 6px;text-align:right;color:#5C6F8A;font-size:12px;">VAT (10%)</td>
+                <td style="padding:8px 6px;text-align:right;color:#5C6F8A;font-size:12px;">${invWon(totalVat)}</td>
+              </tr>
+              <tr style="background:#1D5BA6;">
+                <td colspan="8" style="padding:10px 6px;text-align:right;font-weight:700;color:#fff;font-size:13px;">청구금액 합계</td>
+                <td style="padding:10px 6px;text-align:right;font-weight:800;color:#fff;font-size:14px;">${invWon(totalCharge)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>`:`
+        <!-- 지급예정서 내역 -->
+        <div style="font-size:12px;font-weight:700;color:#5C6F8A;margin-bottom:6px;">지급 내역</div>
+        <div style="background:#fff;border-radius:12px;border:1px solid #DDE4EF;overflow:hidden;margin-bottom:10px;">
+          <table style="width:100%;border-collapse:collapse;">
+            <thead>
+              <tr>
+                <th style="background:#E8F0FB;color:#1D5BA6;font-size:11px;font-weight:700;padding:9px 10px;text-align:left;border-bottom:1px solid #DDE4EF;">항목</th>
+                <th style="background:#E8F0FB;color:#1D5BA6;font-size:11px;font-weight:700;padding:9px 10px;text-align:center;border-bottom:1px solid #DDE4EF;">공수</th>
+                <th style="background:#E8F0FB;color:#1D5BA6;font-size:11px;font-weight:700;padding:9px 10px;text-align:center;border-bottom:1px solid #DDE4EF;">단가</th>
+                <th style="background:#dce8f8;color:#1D5BA6;font-size:11px;font-weight:700;padding:9px 10px;text-align:center;border-bottom:1px solid #DDE4EF;">금액</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="padding:10px;border-bottom:1px solid #F0F4FA;font-size:12px;">${y}년 ${m}월 기술인력 투입 공수</td>
+                <td style="padding:10px;border-bottom:1px solid #F0F4FA;text-align:center;">
+                  <input type="number" value="${inv.manday}" onchange="inv.manday=Number(this.value);renderInvoiceTab();"
+                    style="width:60px;border:1px solid #DDE4EF;border-radius:5px;padding:3px 4px;font-size:11px;text-align:center;"/>
+                  <div style="font-size:10px;color:#9AAABF;margin-top:2px;">공수</div>
+                </td>
+                <td style="padding:10px;border-bottom:1px solid #F0F4FA;text-align:center;font-size:12px;color:#5C6F8A;">${invWon(INVOICE_TEAM_RATE)}</td>
+                <td style="padding:10px;border-bottom:1px solid #F0F4FA;text-align:right;font-weight:700;color:#1D5BA6;background:#EEF4FC;font-size:12px;">${invWon(payTotal)}</td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr style="background:#E8F0FB;">
+                <td colspan="3" style="padding:8px 10px;text-align:right;font-weight:700;color:#1D5BA6;">청구금액</td>
+                <td style="padding:8px 10px;text-align:right;font-weight:700;color:#1D5BA6;background:#dce8f8;">${invWon(payTotal)}</td>
+              </tr>
+              <tr>
+                <td colspan="3" style="padding:8px 10px;text-align:right;color:#5C6F8A;font-size:12px;">VAT (10%)</td>
+                <td style="padding:8px 10px;text-align:right;color:#5C6F8A;font-size:12px;">${invWon(payVat)}</td>
+              </tr>
+              <tr style="background:#1D5BA6;">
+                <td colspan="3" style="padding:10px;text-align:right;font-weight:700;color:#fff;font-size:13px;">청구금액 합계</td>
+                <td style="padding:10px;text-align:right;font-weight:800;color:#fff;font-size:14px;">${invWon(payGrand)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>`}
+
+        <!-- 버튼 영역 -->
+        <div style="display:flex;gap:8px;margin-top:4px;">
+          <button onclick="invConfirm();"
+            style="flex:1;padding:13px;background:#16A34A;border:none;border-radius:12px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(22,163,74,0.3);">
+            ✅ 발행 확정
+          </button>
+          <button onclick="invShowPdf();"
+            style="flex:1;padding:13px;background:#1D5BA6;border:none;border-radius:12px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(29,91,166,0.3);">
+            📄 PDF 미리보기
+          </button>
+        </div>
+      </div>`;
+  };
+
+  window.invShowPdf = () => {
+    const payer  = INVOICE_COMPANIES.find(c=>c.value===inv.payerKey);
+    const payee  = INVOICE_COMPANIES.find(c=>c.value===inv.payeeKey);
+    const issuer = INVOICE_ISSUERS.find(i=>i.value===inv.issuerKey);
+    const { rows, totalBill, totalVat, totalCharge, payTotal, payVat, payGrand } = invCalc();
+    const [y,m] = inv.docMonth.split('-');
+
+    const invoiceRowsHtml = rows.map((r,i)=>`
+      <tr style="background:${i%2===0?'#fff':'#F8FAFD'}">
+        <td style="padding:7px 5px;border:1px solid #DDE4EF;font-weight:600;font-size:11px;">${r.name}</td>
+        <td style="padding:7px 5px;border:1px solid #DDE4EF;text-align:center;font-size:11px;">${r.qty}대</td>
+        <td style="padding:7px 5px;border:1px solid #DDE4EF;text-align:right;font-size:11px;color:#5C6F8A;">${invWon(r.balance)}</td>
+        <td style="padding:7px 5px;border:1px solid #DDE4EF;text-align:center;font-size:11px;">${r.b}</td>
+        <td style="padding:7px 5px;border:1px solid #DDE4EF;text-align:right;font-size:11px;color:${r.banipAmt>0?'#1D5BA6':'#9AAABF'}">${r.banipAmt>0?invWon(r.banipAmt):'-'}</td>
+        <td style="padding:7px 5px;border:1px solid #DDE4EF;text-align:center;font-size:11px;">${r.ins}</td>
+        <td style="padding:7px 5px;border:1px solid #DDE4EF;text-align:right;font-size:11px;color:${r.installAmt>0?'#1D5BA6':'#9AAABF'}">${r.installAmt>0?invWon(r.installAmt):'-'}</td>
+        <td style="padding:7px 5px;border:1px solid #DDE4EF;text-align:right;font-size:11px;color:${r.incDep?'#1D5BA6':'#9AAABF'}">${r.incDep?invWon(r.depositAmt):'(미포함)'}</td>
+        <td style="padding:7px 5px;border:1px solid #DDE4EF;text-align:right;font-weight:700;font-size:11px;color:${r.billAmt>0?'#1D5BA6':'#9AAABF'};background:#EEF4FC;">${r.billAmt>0?invWon(r.billAmt):'-'}</td>
+      </tr>`).join('');
+
+    const stampHtml = issuer.stamp
+      ? `<img src="${issuer.stamp}" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:68px;height:68px;object-fit:contain;opacity:0.85;pointer-events:none;"/>`
+      : '';
+
+    const footerHtml = `
+      <div style="display:flex;justify-content:flex-end;margin-top:48px;">
+        <div style="border-top:2px solid #DDE4EF;padding-top:16px;min-width:280px;">
+          <div style="font-size:11px;color:#5C6F8A;margin-bottom:12px;letter-spacing:1px;">발행인</div>
+          <div style="display:flex;align-items:center;gap:16px;">
+            <div>
+              <div style="font-size:14px;font-weight:700;color:#1A2540;margin-bottom:4px;">${issuer.company}</div>
+              <div style="font-size:15px;font-weight:600;color:#1A2540;">${issuer.name}</div>
+            </div>
+            <div style="position:relative;display:inline-flex;align-items:center;justify-content:center;width:70px;height:70px;flex-shrink:0;">
+              <span style="font-size:14px;color:#5C6F8A;letter-spacing:2px;">(인)</span>
+              ${stampHtml}
+            </div>
+          </div>
+        </div>
+      </div>`;
+
+    const pdfWin = window.open('','_blank');
+    pdfWin.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+      <title>${inv.docType==='invoice'?'대금청구서':'지급예정서'}</title>
+      <style>
+        body{margin:0;font-family:Arial,sans-serif;background:#888;display:flex;flex-direction:column;align-items:center;padding:20px;}
+        .toolbar{margin-bottom:12px;display:flex;gap:8px;}
+        .toolbar button{padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;}
+        .btn-print{background:#1D5BA6;border:none;color:#fff;font-weight:700;}
+        .btn-back{background:#fff;border:1px solid #DDE4EF;}
+        .a4{width:794px;min-height:1123px;background:#fff;padding:60px 70px;box-shadow:0 4px 24px rgba(0,0,0,0.2);color:#1A2540;}
+        @media print{body{background:#fff;padding:0;} .toolbar{display:none;} .a4{box-shadow:none;padding:40px 50px;}}
+      </style></head><body>
+      <div class="toolbar">
+        <button class="btn-back" onclick="window.close()">← 돌아가기</button>
+        <button class="btn-print" onclick="window.print()">🖨 인쇄 / PDF 저장</button>
+      </div>
+      <div class="a4">
+        <div style="text-align:center;margin-bottom:36px;">
+          <div style="font-size:28px;font-weight:800;color:#1D5BA6;letter-spacing:4px;margin-bottom:8px;">
+            ${inv.docType==='invoice'?'대  금  청  구  서':'지  급  예  정  서'}
+          </div>
+          <div style="width:60px;height:3px;background:#1D5BA6;margin:0 auto;"></div>
+        </div>
+        <div style="display:flex;gap:16px;margin-bottom:20px;font-size:13px;color:#5C6F8A;">
+          <span><strong style="color:#1A2540;">기준월:</strong> ${y}년 ${m}월</span>
+          ${inv.docType==='invoice'?`<span><strong style="color:#1A2540;">발행일:</strong> ${inv.docDate}</span>`
+            :`<span><strong style="color:#1A2540;">지급예정일:</strong> ${inv.dueDate||'-'}</span>`}
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:28px;">
+          ${[{label:'지급처',info:payer},{label:'수령처',info:payee}].map(x=>`
+            <div style="border:1px solid #DDE4EF;border-radius:8px;padding:16px 20px;">
+              <div style="font-size:11px;color:#5C6F8A;font-weight:700;margin-bottom:8px;">${x.label}</div>
+              <div style="font-size:16px;font-weight:800;color:#1D5BA6;margin-bottom:6px;">${x.info.company}</div>
+              <div style="font-size:13px;margin-bottom:3px;">담당: ${x.info.name}</div>
+              <div style="font-size:12px;color:#5C6F8A;margin-bottom:2px;">${x.info.tel}</div>
+              <div style="font-size:11px;color:#9AAABF;">${x.info.email}</div>
+            </div>`).join('')}
+        </div>
+        ${inv.docType==='invoice'?`
+        <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:20px;">
+          <thead>
+            <tr style="background:#E8F0FB;">
+              ${['섹터','물량','잔금','반입(대)','반입금액(80%)','설치(대)','설치금액(20%)','보증금(10%)','설치비'].map((h,i)=>
+                `<th style="padding:7px 5px;color:#1D5BA6;font-weight:700;text-align:center;border:1px solid #DDE4EF;background:${i===8?'#dce8f8':'#E8F0FB'}">${h}</th>`).join('')}
+            </tr>
+          </thead>
+          <tbody>${invoiceRowsHtml}</tbody>
+          <tfoot>
+            <tr style="background:#E8F0FB;">
+              <td colspan="8" style="padding:8px 5px;text-align:right;font-weight:700;color:#1D5BA6;border:1px solid #DDE4EF;">청구금액</td>
+              <td style="padding:8px 5px;text-align:right;font-weight:700;color:#1D5BA6;border:1px solid #DDE4EF;background:#dce8f8;">${invWon(totalBill)}</td>
+            </tr>
+            <tr>
+              <td colspan="8" style="padding:7px 5px;text-align:right;color:#5C6F8A;border:1px solid #DDE4EF;">VAT (10%)</td>
+              <td style="padding:7px 5px;text-align:right;color:#5C6F8A;border:1px solid #DDE4EF;">${invWon(totalVat)}</td>
+            </tr>
+            <tr style="background:#1D5BA6;">
+              <td colspan="8" style="padding:9px 5px;text-align:right;font-weight:700;color:#fff;border:1px solid #1D5BA6;font-size:13px;">청구금액 합계</td>
+              <td style="padding:9px 5px;text-align:right;font-weight:800;color:#fff;border:1px solid #1D5BA6;font-size:14px;">${invWon(totalCharge)}</td>
+            </tr>
+          </tfoot>
+        </table>`:`
+        <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:20px;">
+          <thead>
+            <tr style="background:#E8F0FB;">
+              ${['항목','공수','단가','금액'].map((h,i)=>`<th style="padding:8px 10px;color:#1D5BA6;font-weight:700;border:1px solid #DDE4EF;text-align:center;background:${i===3?'#dce8f8':'#E8F0FB'}">${h}</th>`).join('')}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding:10px;border:1px solid #DDE4EF;">${y}년 ${m}월 기술인력 투입 공수</td>
+              <td style="padding:10px;border:1px solid #DDE4EF;text-align:center;">${inv.manday.toFixed(1)}</td>
+              <td style="padding:10px;border:1px solid #DDE4EF;text-align:right;">${invWon(INVOICE_TEAM_RATE)}</td>
+              <td style="padding:10px;border:1px solid #DDE4EF;text-align:right;font-weight:700;color:#1D5BA6;background:#EEF4FC;">${invWon(payTotal)}</td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr style="background:#E8F0FB;">
+              <td colspan="3" style="padding:8px 10px;text-align:right;font-weight:700;color:#1D5BA6;border:1px solid #DDE4EF;">청구금액</td>
+              <td style="padding:8px 10px;text-align:right;font-weight:700;color:#1D5BA6;border:1px solid #DDE4EF;background:#dce8f8;">${invWon(payTotal)}</td>
+            </tr>
+            <tr>
+              <td colspan="3" style="padding:8px 10px;text-align:right;color:#5C6F8A;border:1px solid #DDE4EF;">VAT (10%)</td>
+              <td style="padding:8px 10px;text-align:right;color:#5C6F8A;border:1px solid #DDE4EF;">${invWon(payVat)}</td>
+            </tr>
+            <tr style="background:#1D5BA6;">
+              <td colspan="3" style="padding:10px;text-align:right;font-weight:700;color:#fff;border:1px solid #1D5BA6;font-size:13px;">청구금액 합계</td>
+              <td style="padding:10px;text-align:right;font-weight:800;color:#fff;border:1px solid #1D5BA6;font-size:14px;">${invWon(payGrand)}</td>
+            </tr>
+          </tfoot>
+        </table>`}
+        ${footerHtml}
+      </div></body></html>`);
+    pdfWin.document.close();
+  };
 </script>
 
 <style>
@@ -685,7 +1186,7 @@ body { font-family:-apple-system,'Apple SD Gothic Neo','Pretendard',sans-serif; 
   <div class="tab-bar">
     <button class="tab-btn active" onclick="switchTab(this,'tab-progress');onProgressTabEnter();">📊 공정 현황</button>
     <button class="tab-btn" onclick="switchTab(this,'tab-manday');onMandayTabEnter();">🔧 공수 집계</button>
-    <button class="tab-btn" onclick="switchTab(this,'tab-invoice')">📄 정산서</button>
+    <button class="tab-btn" onclick="switchTab(this,'tab-invoice');onInvoiceTabEnter();">📄 정산서</button>
     <button class="tab-btn" onclick="switchTab(this,'tab-salary')">💰 급여 관리</button>
   </div>
 
@@ -727,9 +1228,7 @@ body { font-family:-apple-system,'Apple SD Gothic Neo','Pretendard',sans-serif; 
   </div>
 
   <!-- 정산서 -->
-  <div class="tab-content" id="tab-invoice">
-    <div class="coming-soon"><div style="font-size:32px">📄</div><br>거래처 정산서 발행<br><span style="font-size:12px">4단계에서 구현 예정</span></div>
-  </div>
+  <div class="tab-content" id="tab-invoice"></div>
 
   <!-- 급여 관리 -->
   <div class="tab-content" id="tab-salary">
