@@ -1573,14 +1573,14 @@ window.renderPayslipWrite = async () => {
   window.psMonthChange = async (month) => {
     ps.month = month;
     ps.payDate = window.calcPayDateGlobal(month);
-    // 초과근로수당 재연동
+    // 초과근로수당 재연동 — await 완료 후 psRefresh
     if (ps.workerData?.name && window.getOvertimeAmountForPayslip) {
       try {
         const otAmt = await window.getOvertimeAmountForPayslip(ps.workerData.name, month);
-        if (otAmt > 0) ps.bonus = otAmt;
+        ps.bonus = otAmt; // 0이어도 덮어씀
       } catch(e) { console.error('초과근로 연동 오류:', e); }
     }
-    window.psRefresh();
+    window.psRefresh(); // await 완료 후 렌더링
   };
 };
 
@@ -2192,10 +2192,31 @@ window.rosterSave = async () => {
   try {
     const { getDocs, collection, setDoc, doc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
     const wid = `${rosterForm.name}_${rosterForm.jumin.replace(/-/g,'')}`;
+
+    // 사원번호 규칙: 최초입사년도 yy + 해당 년도 순번 nnn → yynnn (5자리)
+    // 예: 25년 첫번째 → 25001, 28년 30번째 → 28030
+    const hireDate = rosterForm.hireDate || new Date().toISOString().slice(0,10);
+    const yy = hireDate.slice(2,4); // 입사년도 2자리
+
     const snap = await getDocs(collection(window._db, 'workers'));
-    const nums = []; snap.forEach(d=>{const n=parseInt(d.data().empNo||'0');if(n)nums.push(n);});
-    const nextNo = String((nums.length?Math.max(...nums):0)+1).padStart(3,'0');
-    await setDoc(doc(window._db,'workers',wid), { ...rosterForm, empNo:nextNo, registeredAt:new Date().toISOString(), hireDate:rosterForm.hireDate||'', bankAccount:rosterForm.bankAccount||'' });
+    // 같은 입사년도(yy)로 시작하는 사원번호 중 최대값 추출
+    let maxSeq = 0;
+    snap.forEach(d => {
+      const no = d.data().empNo || '';
+      if (no.length === 5 && no.slice(0,2) === yy) {
+        const seq = parseInt(no.slice(2), 10);
+        if (seq > maxSeq) maxSeq = seq;
+      }
+    });
+    const nextNo = yy + String(maxSeq + 1).padStart(3, '0');
+
+    await setDoc(doc(window._db,'workers',wid), {
+      ...rosterForm,
+      empNo: nextNo,
+      registeredAt: new Date().toISOString(),
+      hireDate: rosterForm.hireDate || '',
+      bankAccount: rosterForm.bankAccount || ''
+    });
     alert(`✅ 등록 완료! 사원번호: ${nextNo}`);
     renderRosterMain();
   } catch(e) { alert('오류: '+e.message); }
