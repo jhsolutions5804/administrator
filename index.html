@@ -780,7 +780,7 @@ body { font-family:-apple-system,'Apple SD Gothic Neo','Pretendard',sans-serif; 
     <div class="sb-grp">4 · 급여</div>
     <button class="sb-item" data-navkey="payslip" onclick="goTab('payslip')"><span class="sb-num">4</span> 급여명세서</button>
     <div class="sb-grp">5 · 퇴직</div>
-    <button class="sb-item soon" data-navkey="retire" onclick="goTab('retire')"><span class="sb-num">5</span> 퇴직금 정산 <span class="sb-soon">준비 중</span></button>
+    <button class="sb-item" data-navkey="retire" onclick="goTab('retire')"><span class="sb-num">5</span> 퇴직금 정산</button>
     <div class="sb-foot"><div class="av" id="sb-user">?</div><button onclick="doLogout()">로그아웃</button></div>
   </aside>
 
@@ -821,12 +821,8 @@ body { font-family:-apple-system,'Apple SD Gothic Neo','Pretendard',sans-serif; 
   <div class="tab-content" id="tab-overtime"></div>
   <!-- 급여명세서 -->
   <div class="tab-content" id="tab-payslip"></div>
-  <!-- 퇴직금 정산 (준비 중) -->
-  <div class="tab-content" id="tab-retire">
-    <div style="padding:16px;max-width:520px;margin:0 auto;">
-      <div class="coming-soon"><div style="font-size:32px">🧾</div><br>퇴직금 정산<br><span style="font-size:12px;color:#9AAABF;">재직기간 × 평균임금 기준 자동 산정<br>다음 단계에서 추가 예정</span></div>
-    </div>
-  </div>
+  <!-- 퇴직금 정산 -->
+  <div class="tab-content" id="tab-retire"></div>
   </div>
 </div>
 
@@ -849,7 +845,7 @@ const HR_TABS = {
   annual:   { id:'tab-annual',   title:'연봉계약서',  fn:()=>renderAnnualMain() },
   overtime: { id:'tab-overtime', title:'초과근로',    fn:()=>renderOvertimeMain() },
   payslip:  { id:'tab-payslip',  title:'급여명세서',  fn:()=>renderPayslipMain2() },
-  retire:   { id:'tab-retire',   title:'퇴직금 정산', fn:null },
+  retire:   { id:'tab-retire',   title:'퇴직금 정산', fn:()=>renderRetireMain() },
 };
 
 function goTab(key) {
@@ -3849,6 +3845,222 @@ window.otDeletePerson = async (docId, workerId, name, rank) => {
 };
 
 // getOvertimeAmountForPayslip은 상단에 정의됨
+</script>
+<script>
+// ════════════════════════════════
+// 🧾 퇴직금 정산
+// 1일 평균임금 = (퇴직 전 3개월: 기본+고정연장+고정야간+주휴+상여금) ÷ 그 기간 일수
+//   · 특별성과급·특근수당 제외, 정기상여/연차수당 가산 없음
+//   · 평균임금 < 통상임금이면 통상임금(1일=통상시급×8) 적용
+//   · 계속근로 1년 미만 0원
+// 퇴직금 = 적용 1일 평균임금 × 30 × (재직일수 ÷ 365)
+// ════════════════════════════════
+const rtWon = n => Math.round(Number(n)||0).toLocaleString('ko-KR');
+let _rtWorkers = [];
+
+window.renderRetireMain = () => {
+  const el = document.getElementById('tab-retire'); if(!el) return;
+  el.innerHTML = wrap2(`
+    <div style="font-size:18px;font-weight:800;color:${C2.text};margin-bottom:4px;">퇴직금 정산</div>
+    <div style="font-size:12px;color:${C2.sub};margin-bottom:16px;">재직기간 × 평균임금 기준 자동 산정</div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      ${selectMain('🧾','퇴직금 산정','renderRetireCalc()','근로자·퇴직일 선택 → 자동 계산')}
+      ${selectMain('📂','정산 내역 조회','renderRetireList()','저장된 퇴직금 정산 보기')}
+    </div>
+    <div style="margin-top:16px;background:#FFF4E5;border:1px solid #F4D9AD;border-radius:10px;padding:11px 13px;font-size:11.5px;color:#9A5B00;line-height:1.5;">
+      ⚠️ 자동 산정 결과는 참고용입니다. 실제 지급 전 노무사 또는 관할 고용센터에 확인하시기 바랍니다.
+    </div>
+  `);
+};
+
+window.renderRetireCalc = async () => {
+  const el = document.getElementById('tab-retire'); if(!el) return;
+  el.innerHTML = wrap2(`${backBtn2('renderRetireMain()')}<div style="text-align:center;padding:32px;color:${C2.mute};">⏳ 근로자 불러오는 중...</div>`);
+  _rtWorkers = await getWorkersList();
+  const today = new Date().toISOString().slice(0,10);
+  const opts = ['<option value="">근로자 선택</option>'].concat(
+    _rtWorkers.map(w=>`<option value="${w.id}">${w.name||'-'}${w.dept?(' · '+w.dept):''}${w.rank?(' '+w.rank):''}</option>`)
+  ).join('');
+  el.innerHTML = wrap2(`
+    ${backBtn2('renderRetireMain()')}
+    ${card2('퇴직금 산정', `
+      ${field2('근로자', `<select id="rt-worker" onchange="retireCompute()" style="width:100%;border:1px solid #DDE4EF;border-radius:8px;padding:9px 12px;font-size:13px;color:#1A2540;background:#FAFCFF;box-sizing:border-box;">${opts}</select>`)}
+      ${field2('퇴직일', `<input type="date" id="rt-date" value="${today}" onchange="retireCompute()" ${inp2Style}>`)}
+    `)}
+    <div id="rt-result"></div>
+  `);
+};
+
+function rtRow(label, val, sub){
+  return `<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #F4F7FB;">
+    <div><div style="font-size:12px;color:#5C6F8A;font-weight:600;">${label}</div>${sub?`<div style="font-size:10px;color:#9AAABF;margin-top:1px;">${sub}</div>`:''}</div>
+    <div style="font-size:14px;font-weight:700;color:#1A2540;">${val}</div>
+  </div>`;
+}
+function rtWarn(msg){
+  return `<div style="background:#FEE2E2;border:1px solid #FCA5A5;border-radius:10px;padding:13px 15px;font-size:12px;color:#B91C1C;line-height:1.5;">${msg}</div>`;
+}
+
+window.retireCompute = async () => {
+  const res = document.getElementById('rt-result'); if(!res) return;
+  const wid = (document.getElementById('rt-worker')||{}).value || '';
+  const retireDate = (document.getElementById('rt-date')||{}).value || '';
+  if (!wid || !retireDate) { res.innerHTML=''; return; }
+  res.innerHTML = `<div style="text-align:center;padding:24px;color:${C2.mute};">계산 중...</div>`;
+  try {
+    const { getDocs, collection } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const w = _rtWorkers.find(x=>x.id===wid) || {};
+    const hireDate = w.hireDate || '';
+    if (!hireDate) { res.innerHTML = rtWarn('이 근로자의 최초입사일이 명부에 없습니다. 근로자 명부에서 입사일을 먼저 입력해 주세요.'); return; }
+
+    const serviceDays = Math.floor((new Date(retireDate) - new Date(hireDate)) / 86400000);
+    if (serviceDays <= 0) { res.innerHTML = rtWarn('퇴직일이 입사일보다 빠릅니다. 날짜를 확인해 주세요.'); return; }
+
+    const retireYM = retireDate.slice(0,7);
+    const pSnap = await getDocs(collection(window._db, `payslips/${wid}/months`));
+    let pays=[]; pSnap.forEach(d=>pays.push({month:d.id, ...d.data()}));
+    pays = pays.filter(p=>p.month < retireYM).sort((a,b)=>b.month.localeCompare(a.month)).slice(0,3);
+
+    let includedTotal=0, periodDays=0;
+    const rows = pays.map(p=>{
+      const base=(Number(p.basic)||0)+(Number(p.fixedOt)||0)+(Number(p.fixedNight)||0)+(Number(p.weekly)||0);
+      const bonus=Number(p.bonus)||0;
+      const inc=base+bonus;
+      const [y,m]=p.month.split('-').map(Number);
+      const dim=new Date(y,m,0).getDate();
+      includedTotal+=inc; periodDays+=dim;
+      return {month:p.month, base, bonus, inc, dim};
+    });
+    const avgDaily = periodDays>0 ? includedTotal/periodDays : 0;
+
+    let ordDaily=0, hasAnnual=false;
+    const aSnap = await getDocs(collection(window._db, `annual_contracts/${wid}/contracts`));
+    let aDocs=[]; aSnap.forEach(d=>aDocs.push({id:d.id, ...d.data()}));
+    if (aDocs.length) {
+      hasAnnual=true;
+      aDocs.sort((a,b)=>String(b.contractDate||b.id).localeCompare(String(a.contractDate||a.id)));
+      const a0=aDocs[0];
+      const sal=calcAnnualSalary(Number(a0.hourly)||0, a0.empType||w.empType||'field');
+      const ordHourly=(sal.basic+sal.fixedOt+sal.fixedNight+sal.weekly)/209;
+      ordDaily=ordHourly*8;
+    }
+
+    const appliedDaily = Math.max(avgDaily, ordDaily);
+    const substituted = ordDaily>avgDaily && ordDaily>0;
+    const under1y = serviceDays < 365;
+    const severance = under1y ? 0 : Math.round(appliedDaily * 30 * (serviceDays/365));
+    const yLabel = `${Math.floor(serviceDays/365)}년 ${Math.floor((serviceDays%365)/30)}개월`;
+
+    let warns=[];
+    if (pays.length < 3) warns.push(`퇴직 전 급여명세서가 ${pays.length}개월치만 있어, 있는 만큼만 평균에 반영했습니다.`);
+    if (!hasAnnual) warns.push('연봉계약서가 없어 통상임금 비교를 건너뛰었습니다.');
+    if (under1y) warns.push('계속근로기간 1년 미만으로, 법정 퇴직금은 발생하지 않습니다(0원).');
+
+    const rowHtml = rows.length ? rows.map(r=>`
+      <tr>
+        <td style="padding:7px 6px;border-bottom:1px solid #F0F4FA;color:#5C6F8A;">${r.month}</td>
+        <td style="padding:7px 6px;border-bottom:1px solid #F0F4FA;text-align:right;">${rtWon(r.base)}</td>
+        <td style="padding:7px 6px;border-bottom:1px solid #F0F4FA;text-align:right;">${rtWon(r.bonus)}</td>
+        <td style="padding:7px 6px;border-bottom:1px solid #F0F4FA;text-align:right;font-weight:700;color:#1A2540;">${rtWon(r.inc)}</td>
+        <td style="padding:7px 6px;border-bottom:1px solid #F0F4FA;text-align:center;color:#9AAABF;">${r.dim}일</td>
+      </tr>`).join('') : `<tr><td colspan="5" style="padding:14px;text-align:center;color:#9AAABF;">퇴직 전 급여명세서가 없습니다.</td></tr>`;
+
+    res.innerHTML = `
+      ${card2('① 평균임금 산정 (퇴직 전 3개월)', `
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <tr style="background:#E8F0FB;">
+            <th style="padding:7px 6px;text-align:left;color:#1D5BA6;font-size:10.5px;">기준월</th>
+            <th style="padding:7px 6px;text-align:right;color:#1D5BA6;font-size:10.5px;">기본+고정+주휴</th>
+            <th style="padding:7px 6px;text-align:right;color:#1D5BA6;font-size:10.5px;">상여금</th>
+            <th style="padding:7px 6px;text-align:right;color:#1D5BA6;font-size:10.5px;">소계</th>
+            <th style="padding:7px 6px;text-align:center;color:#1D5BA6;font-size:10.5px;">일수</th>
+          </tr>
+          ${rowHtml}
+          <tr style="background:#F8FAFD;font-weight:700;">
+            <td style="padding:8px 6px;color:#1A2540;">합계</td>
+            <td colspan="2" style="padding:8px 6px;text-align:right;color:#9AAABF;font-weight:400;font-size:10.5px;">임금 총액 →</td>
+            <td style="padding:8px 6px;text-align:right;color:#1D5BA6;">${rtWon(includedTotal)}</td>
+            <td style="padding:8px 6px;text-align:center;color:#5C6F8A;">${periodDays}일</td>
+          </tr>
+        </table>
+        ${rtRow('1일 평균임금', rtWon(avgDaily)+' 원', '임금 총액 ÷ 기간 일수')}
+        ${hasAnnual ? rtRow('1일 통상임금', rtWon(ordDaily)+' 원', '통상시급 × 8h (비교용)') : ''}
+        ${substituted ? `<div style="margin-top:8px;background:#E8F0FB;border-radius:8px;padding:8px 10px;font-size:11px;color:#1D5BA6;">평균임금이 통상임금보다 낮아 통상임금을 적용했습니다.</div>` : ''}
+      `)}
+      ${card2('② 재직기간', `
+        ${rtRow('입사일', fmtD2(hireDate), '')}
+        ${rtRow('퇴직일', fmtD2(retireDate), '')}
+        ${rtRow('계속근로기간', `${serviceDays}일`, yLabel)}
+      `)}
+      ${card2('③ 퇴직금', `
+        <div style="font-size:11px;color:#9AAABF;margin-bottom:8px;">적용 1일 평균임금 ${rtWon(appliedDaily)}원 × 30일 × (${serviceDays}일 ÷ 365)</div>
+        <div style="display:flex;align-items:baseline;justify-content:space-between;background:#1D5BA6;border-radius:12px;padding:14px 16px;">
+          <span style="font-size:13px;color:rgba(255,255,255,0.85);font-weight:600;">예상 퇴직금</span>
+          <span style="font-size:22px;font-weight:800;color:#fff;">${rtWon(severance)} 원</span>
+        </div>
+      `)}
+      ${warns.length ? `<div style="background:#FFF4E5;border:1px solid #F4D9AD;border-radius:10px;padding:11px 13px;font-size:11.5px;color:#9A5B00;line-height:1.6;margin-bottom:10px;">${warns.map(x=>'• '+x).join('<br>')}</div>` : ''}
+      <button onclick="retireSave()" style="width:100%;padding:13px;background:${C2.green};border:none;border-radius:12px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;">✅ 정산 내역 저장</button>
+    `;
+
+    window._rtCurrent = { wid, name:w.name||'', dept:w.dept||'', rank:w.rank||'', hireDate, retireDate, serviceDays, includedTotal, periodDays, avgDaily, ordDaily, appliedDaily, substituted, under1y, severance, months: rows.map(r=>r.month) };
+  } catch(e) {
+    res.innerHTML = rtWarn('계산 중 오류가 발생했습니다: '+e.message);
+  }
+};
+
+window.retireSave = async () => {
+  const c = window._rtCurrent;
+  if (!c || !c.wid) { alert('먼저 근로자와 퇴직일을 선택해 주세요.'); return; }
+  if (!window._db) { alert('Firebase 연결 필요'); return; }
+  if (!confirm(`${c.name}님 퇴직금 정산(퇴직일 ${c.retireDate})을 저장하시겠습니까?`)) return;
+  try {
+    const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    await setDoc(doc(window._db, `severance/${c.wid}/records`, c.retireDate), { ...c, savedAt:new Date().toISOString() });
+    alert('✅ 퇴직금 정산 저장 완료!');
+    renderRetireMain();
+  } catch(e) { alert('오류: '+e.message); }
+};
+
+window.renderRetireList = async () => {
+  const el = document.getElementById('tab-retire'); if(!el) return;
+  el.innerHTML = wrap2(`${backBtn2('renderRetireMain()')}<div style="text-align:center;padding:32px;color:${C2.mute};">⏳ 불러오는 중...</div>`);
+  const workers = await getWorkersList();
+  const items = workers.map(w=>`
+    <button onclick="retireViewWorker('${w.id}','${(w.name||'').replace(/'/g,'')}')" style="width:100%;background:#fff;border:1px solid #DDE4EF;border-radius:10px;padding:12px 14px;text-align:left;cursor:pointer;display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <span style="font-size:13px;font-weight:600;color:#1A2540;">${w.name||'-'} <span style="font-size:11px;color:#9AAABF;font-weight:400;">${w.dept||''} ${w.rank||''}</span></span>
+      <span style="color:#C2CCD9;">›</span>
+    </button>`).join('');
+  el.innerHTML = wrap2(`${backBtn2('renderRetireMain()')}<div style="font-size:14px;font-weight:700;color:${C2.text};margin:8px 0 12px;">정산 내역 조회</div>${items||'<div style="text-align:center;padding:40px;color:#9AAABF;">근로자가 없습니다.</div>'}`);
+};
+
+window.retireViewWorker = async (wid, wname) => {
+  const el = document.getElementById('tab-retire'); if(!el) return;
+  el.innerHTML = wrap2(`${backBtn2('renderRetireList()')}<div style="text-align:center;padding:32px;color:${C2.mute};">⏳ 불러오는 중...</div>`);
+  const { getDocs, collection } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+  const snap = await getDocs(collection(window._db, `severance/${wid}/records`));
+  let recs=[]; snap.forEach(d=>recs.push({id:d.id, ...d.data()}));
+  recs.sort((a,b)=>String(b.id).localeCompare(String(a.id)));
+  const list = recs.length ? recs.map(r=>`
+    <div style="background:#fff;border:1px solid #DDE4EF;border-radius:10px;padding:12px 14px;margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <span style="font-size:12px;color:#5C6F8A;">퇴직일 ${fmtD2(r.retireDate)}</span>
+        <button onclick="retireDelete('${wid}','${r.id}','${(wname||'').replace(/'/g,'')}')" style="background:none;border:none;color:#DC2626;font-size:11px;cursor:pointer;">삭제</button>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;">
+        <span style="font-size:11px;color:#9AAABF;">${r.serviceDays}일 · 1일 ${rtWon(r.appliedDaily)}원</span>
+        <span style="font-size:17px;font-weight:800;color:#1D5BA6;">${rtWon(r.severance)} 원</span>
+      </div>
+    </div>`).join('') : '<div style="text-align:center;padding:40px;color:#9AAABF;">저장된 정산 내역이 없습니다.</div>';
+  el.innerHTML = wrap2(`${backBtn2('renderRetireList()')}<div style="font-size:14px;font-weight:700;color:${C2.text};margin:8px 0 12px;">${wname} 퇴직금 정산</div>${list}`);
+};
+
+window.retireDelete = async (wid, rid, wname) => {
+  if (!confirm('이 정산 내역을 삭제하시겠습니까?')) return;
+  const { doc, deleteDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+  await deleteDoc(doc(window._db, `severance/${wid}/records`, rid));
+  retireViewWorker(wid, wname);
+};
 </script>
 </body>
 </html>
