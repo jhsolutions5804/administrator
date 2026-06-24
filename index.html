@@ -676,6 +676,65 @@ body { font-family:-apple-system,'Apple SD Gothic Neo','Pretendard',sans-serif; 
 #progress-loading { display:none; flex-direction:column; align-items:center; justify-content:center; padding:60px 20px; gap:12px; color:#9AAABF; }
 .spinner { width:28px; height:28px; border:3px solid #DDE4EF; border-top-color:#1D5BA6; border-radius:50%; animation:spin 0.8s linear infinite; }
 @keyframes spin { to { transform:rotate(360deg); } }
+
+/* === 인사 셸: PC 사이드바 / 모바일 상단바 === */
+#hr-sidebar { display:none; }
+#hr-body { flex:1; min-width:0; display:flex; flex-direction:column; }
+@media (min-width:900px){
+  #app-screen { flex-direction:row; align-items:stretch; }
+  #hr-sidebar { display:flex; flex-direction:column; width:212px; flex:0 0 auto; background:#13335C; color:#CDD8E8; padding:16px 12px; min-height:100vh; }
+  #app-screen .app-header { display:none; }
+  #app-screen #tabbar-hr { display:none; }
+  .tab-content { max-width:760px; }
+}
+@media (max-width:899px){ #hr-sidebar { display:none !important; } }
+.sb-brand { display:flex; align-items:center; gap:9px; padding:4px 6px 14px; border-bottom:1px solid rgba(255,255,255,0.1); margin-bottom:8px; }
+.sb-logo { width:30px; height:30px; border-radius:8px; background:#fff; color:#13335C; font-weight:800; font-size:13px; display:flex; align-items:center; justify-content:center; }
+.sb-brand .nm { font-size:13px; font-weight:700; color:#fff; line-height:1.2; }
+.sb-brand .nm small { display:block; font-size:10px; font-weight:400; color:#8FA3C0; }
+.sb-grp { font-size:10px; color:#6F88AD; font-weight:600; padding:11px 8px 5px; }
+.sb-item { display:flex; align-items:center; gap:8px; font-size:12.5px; padding:8px 9px; border-radius:8px; color:#CDD8E8; cursor:pointer; border:none; background:none; width:100%; text-align:left; }
+.sb-item:hover { background:rgba(255,255,255,0.07); }
+.sb-item.active { background:#1D5BA6; color:#fff; font-weight:600; }
+.sb-item.active .sb-num { background:rgba(255,255,255,0.25); color:#fff; }
+.sb-item.soon { color:#7D8BA6; cursor:default; }
+.sb-num { width:18px; height:18px; border-radius:5px; background:rgba(255,255,255,0.1); font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center; flex:0 0 auto; }
+.sb-soon { margin-left:auto; font-size:8px; font-weight:700; background:rgba(255,255,255,0.14); color:#AEBCD4; padding:1px 6px; border-radius:10px; }
+.sb-foot { margin-top:auto; padding-top:12px; border-top:1px solid rgba(255,255,255,0.1); display:flex; align-items:center; gap:8px; font-size:11px; color:#8FA3C0; }
+.sb-foot .av { width:26px; height:26px; border-radius:50%; background:rgba(255,255,255,0.18); display:flex; align-items:center; justify-content:center; font-weight:700; color:#fff; font-size:12px; flex:0 0 auto; }
+.sb-foot button { margin-left:auto; background:none; border:none; color:#8FA3C0; font-size:11px; cursor:pointer; }
+
+/* === 인사 홈 대시보드 === */
+.hm-alert { background:#FFF4E5; border:1px solid #F4D9AD; border-radius:11px; padding:11px 13px; display:flex; align-items:center; gap:9px; margin-bottom:14px; }
+.hm-alert .tx { font-size:12px; color:#9A5B00; line-height:1.45; flex:1; }
+.hm-alert .tx b { font-weight:700; }
+.hm-alert .go { font-size:11.5px; font-weight:700; color:#fff; background:#E08A00; padding:6px 11px; border-radius:8px; white-space:nowrap; border:none; cursor:pointer; }
+.hm-kgrid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:18px; }
+@media (min-width:760px){ .hm-kgrid { grid-template-columns:repeat(4,1fr); } }
+.hm-kpi { background:#fff; border:1px solid #DDE4EF; border-radius:12px; padding:13px 14px; cursor:pointer; text-align:left; }
+.hm-kpi:hover { border-color:#5BA4CF; }
+.hm-kpi .lab { font-size:11px; color:#5C6F8A; font-weight:500; }
+.hm-kpi .val { font-size:20px; font-weight:700; margin-top:6px; line-height:1.1; color:#1A2540; }
+.hm-kpi .val small { font-size:12px; font-weight:500; color:#9AAABF; }
+.hm-kpi .act { font-size:10.5px; color:#1D5BA6; font-weight:600; margin-top:7px; }
+.hm-kpi.warn { background:#FFF4E5; border-color:#F4D9AD; }
+.hm-kpi.warn .lab { color:#9A5B00; } .hm-kpi.warn .val { color:#E08A00; } .hm-kpi.warn .act { color:#9A5B00; }
+.hm-sec { font-size:12px; font-weight:600; color:#5C6F8A; margin:4px 0 8px; }
+.hm-flow { display:grid; gap:9px; }
+@media (min-width:760px){ .hm-flow { grid-template-columns:repeat(2,1fr); } .hm-flow .hm-fc.full { grid-column:1 / -1; } }
+.hm-fc { background:#fff; border:1px solid #DDE4EF; border-radius:12px; padding:12px 13px; display:flex; align-items:center; gap:12px; cursor:pointer; text-align:left; width:100%; }
+.hm-fc:hover { border-color:#5BA4CF; }
+.hm-fc.soon { opacity:.72; cursor:default; }
+.hm-step { width:30px; height:30px; border-radius:9px; flex:0 0 auto; background:#E8F0FB; color:#1D5BA6; font-weight:700; font-size:14px; display:flex; align-items:center; justify-content:center; }
+.hm-fc.soon .hm-step { background:#EEF1F6; color:#9AABBF; }
+.hm-fb { flex:1; min-width:0; }
+.hm-fb .stage { font-size:11px; color:#9AAABF; margin-bottom:3px; }
+.hm-fb .ttl { font-size:14px; font-weight:600; color:#1A2540; display:flex; align-items:center; gap:7px; }
+.hm-pills { display:flex; gap:5px; flex-wrap:wrap; margin-top:5px; align-items:center; }
+.hm-pill { font-size:11px; background:#E8F0FB; color:#0A3D7A; padding:2px 8px; border-radius:20px; font-weight:500; }
+.hm-arrow { color:#9AABBF; font-size:12px; font-weight:700; }
+.hm-soontag { font-size:9px; font-weight:700; background:#E1E7F0; color:#7D8AA0; padding:1px 7px; border-radius:20px; }
+.hm-chev { color:#C2CCD9; flex:0 0 auto; }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
@@ -708,12 +767,28 @@ body { font-family:-apple-system,'Apple SD Gothic Neo','Pretendard',sans-serif; 
 
 <!-- 앱 -->
 <div id="app-screen" class="screen">
+  <aside id="hr-sidebar">
+    <div class="sb-brand"><div class="sb-logo">JH</div><div class="nm">인사<small>제이에이치솔루션</small></div></div>
+    <button class="sb-item" data-navkey="home" onclick="goTab('home')"><span class="sb-num">★</span> 인사 홈</button>
+    <div class="sb-grp">1 · 입사</div>
+    <button class="sb-item" data-navkey="roster" onclick="goTab('roster')"><span class="sb-num">1</span> 근로자 명부</button>
+    <div class="sb-grp">2 · 계약</div>
+    <button class="sb-item" data-navkey="labor" onclick="goTab('labor')"><span class="sb-num">2</span> 근로계약서</button>
+    <button class="sb-item" data-navkey="annual" onclick="goTab('annual')"><span class="sb-num">2</span> 연봉계약서</button>
+    <div class="sb-grp">3 · 근무</div>
+    <button class="sb-item" data-navkey="overtime" onclick="goTab('overtime')"><span class="sb-num">3</span> 초과근로</button>
+    <div class="sb-grp">4 · 급여</div>
+    <button class="sb-item" data-navkey="payslip" onclick="goTab('payslip')"><span class="sb-num">4</span> 급여명세서</button>
+    <div class="sb-grp">5 · 퇴직</div>
+    <button class="sb-item soon" data-navkey="retire" onclick="goTab('retire')"><span class="sb-num">5</span> 퇴직금 정산 <span class="sb-soon">준비 중</span></button>
+    <div class="sb-foot"><div class="av" id="sb-user">?</div><button onclick="doLogout()">로그아웃</button></div>
+  </aside>
+
+  <div id="hr-body">
   <div class="app-header">
     <div style="display:flex;align-items:center;gap:10px;">
-      <button id="back-to-section" onclick="showSectionSelect()"
-        style="display:none;background:rgba(255,255,255,0.15);border:none;border-radius:8px;padding:6px 10px;color:#fff;font-size:16px;cursor:pointer;line-height:1;">‹</button>
       <div>
-        <div class="header-title" id="header-title">정산도우미</div>
+        <div class="header-title" id="header-title">인사 홈</div>
         <div class="header-sub">제이에이치솔루션</div>
       </div>
     </div>
@@ -723,173 +798,133 @@ body { font-family:-apple-system,'Apple SD Gothic Neo','Pretendard',sans-serif; 
     </div>
   </div>
 
-  <!-- 섹션 선택 화면 -->
-  <div id="section-select" style="display:none;padding:28px 16px;max-width:480px;margin:0 auto;">
-    <div style="font-size:13px;color:#5C6F8A;margin-bottom:16px;font-weight:600;">섹션을 선택해 주세요</div>
-    <div style="display:flex;flex-direction:column;gap:12px;">
-      <button onclick="enterSection('planning')"
-        style="background:#fff;border:1px solid #DDE4EF;border-radius:16px;padding:20px;text-align:left;cursor:pointer;box-shadow:0 1px 4px rgba(29,91,166,0.08);display:flex;align-items:center;gap:16px;">
-        <div style="width:52px;height:52px;background:#E8F0FB;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;">📊</div>
-        <div style="flex:1;">
-          <div style="font-size:17px;font-weight:800;color:#1A2540;margin-bottom:3px;">기획</div>
-          <div style="font-size:12px;color:#5C6F8A;margin-bottom:8px;">공정·공수·정산 관리</div>
-          <div style="display:flex;gap:5px;flex-wrap:wrap;">
-            <span style="font-size:10px;background:#E8F0FB;color:#1D5BA6;padding:2px 8px;border-radius:10px;font-weight:600;">📈 공정 현황</span>
-            <span style="font-size:10px;background:#E8F0FB;color:#1D5BA6;padding:2px 8px;border-radius:10px;font-weight:600;">🔧 공수 집계</span>
-            <span style="font-size:10px;background:#E8F0FB;color:#1D5BA6;padding:2px 8px;border-radius:10px;font-weight:600;">📄 정산서</span>
-            <span style="font-size:10px;background:#E8F0FB;color:#1D5BA6;padding:2px 8px;border-radius:10px;font-weight:600;">💼 잔금 관리</span>
-          </div>
-        </div>
-        <div style="font-size:20px;color:#9AAABF;">›</div>
-      </button>
-      <button onclick="enterSection('hr')"
-        style="background:#fff;border:1px solid #DDE4EF;border-radius:16px;padding:20px;text-align:left;cursor:pointer;box-shadow:0 1px 4px rgba(29,91,166,0.08);display:flex;align-items:center;gap:16px;">
-        <div style="width:52px;height:52px;background:#E8F0FB;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0;">👥</div>
-        <div style="flex:1;">
-          <div style="font-size:17px;font-weight:800;color:#1A2540;margin-bottom:3px;">인사</div>
-          <div style="font-size:12px;color:#5C6F8A;margin-bottom:8px;">계약·급여 관리</div>
-          <div style="display:flex;gap:5px;flex-wrap:wrap;">
-            <span style="font-size:10px;background:#E8F0FB;color:#1D5BA6;padding:2px 8px;border-radius:10px;font-weight:600;">📝 근로계약서</span>
-            <span style="font-size:10px;background:#E8F0FB;color:#1D5BA6;padding:2px 8px;border-radius:10px;font-weight:600;">📋 연봉계약서</span>
-            <span style="font-size:10px;background:#E8F0FB;color:#1D5BA6;padding:2px 8px;border-radius:10px;font-weight:600;">💰 급여명세서</span>
-          </div>
-        </div>
-        <div style="font-size:20px;color:#9AAABF;">›</div>
-      </button>
-    </div>
+  <!-- 모바일 탭바 -->
+  <div id="tabbar-hr" class="tab-bar">
+    <button class="tab-btn active" data-navkey="home" onclick="goTab('home')">🏠 인사 홈</button>
+    <button class="tab-btn" data-navkey="roster" onclick="goTab('roster')">👥 근로자 명부</button>
+    <button class="tab-btn" data-navkey="labor" onclick="goTab('labor')">📝 근로계약서</button>
+    <button class="tab-btn" data-navkey="annual" onclick="goTab('annual')">📋 연봉계약서</button>
+    <button class="tab-btn" data-navkey="overtime" onclick="goTab('overtime')">⏱ 초과근로</button>
+    <button class="tab-btn" data-navkey="payslip" onclick="goTab('payslip')">💰 급여명세서</button>
+    <button class="tab-btn" data-navkey="retire" onclick="goTab('retire')">🧾 퇴직금</button>
   </div>
 
-  <!-- 기획 탭바 -->
-  <div id="tabbar-planning" class="tab-bar" style="display:none;">
-    <button class="tab-btn active" id="tb-progress" onclick="switchTab(this,'tab-progress');onProgressTabEnter();">📈 공정 현황</button>
-    <button class="tab-btn" id="tb-manday"   onclick="switchTab(this,'tab-manday');onMandayTabEnter();">🔧 공수 집계</button>
-    <button class="tab-btn" id="tb-invoice"  onclick="switchTab(this,'tab-invoice');onInvoiceTabEnter();">📄 정산서</button>
-    <button class="tab-btn" id="tb-balance"  onclick="switchTab(this,'tab-balance');">💼 잔금 관리</button>
-  </div>
-
-  <!-- 인사 탭바 -->
-  <div id="tabbar-hr" class="tab-bar" style="display:none;">
-    <button class="tab-btn active" id="tb-roster"  onclick="switchTab(this,'tab-roster');renderRosterMain();">👥 근로자 명부</button>
-    <button class="tab-btn" id="tb-labor"          onclick="switchTab(this,'tab-labor');renderLaborMain();">📝 근로계약서</button>
-    <button class="tab-btn" id="tb-annual"         onclick="switchTab(this,'tab-annual');renderAnnualMain();">📋 연봉계약서</button>
-    <button class="tab-btn" id="tb-payslip"        onclick="switchTab(this,'tab-payslip');renderPayslipMain2();">💰 급여명세서</button>
-    <button class="tab-btn" id="tb-overtime"       onclick="switchTab(this,'tab-overtime');renderOvertimeMain();">⏱ 초과근로</button>
-  </div>
-
-  <!-- 공정 현황 -->
-  <div class="tab-content active" id="tab-progress">
-    <div class="month-nav">
-      <button class="nav-btn" onclick="changeProgressMonth(-1)">◀</button>
-      <span class="month-label" id="progress-month-label">2026년 6월</span>
-      <button class="nav-btn" onclick="changeProgressMonth(1)">▶</button>
-    </div>
-    <div class="view-row">
-      <button id="progress-back" onclick="progressBack()">◀ 뒤로</button>
-      <span id="progress-view-title">섹터별 월간 요약</span>
-    </div>
-    <div id="progress-summary"></div>
-    <div id="progress-loading"><div class="spinner"></div><span>데이터 불러오는 중...</span></div>
-    <div id="progress-content"><div id="progress-table-wrap"></div></div>
-  </div>
-
-  <!-- 공수 집계 -->
-  <div class="tab-content" id="tab-manday">
-    <div class="month-nav">
-      <button class="nav-btn" onclick="changeMandayMonth(-1)">◀</button>
-      <span class="month-label" id="manday-month-label">2026년 6월</span>
-      <button class="nav-btn" onclick="changeMandayMonth(1)">▶</button>
-    </div>
-    <div id="manday-summary"></div>
-    <div id="manday-loading" style="display:none;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;gap:12px;color:#9AAABF;">
-      <div class="spinner"></div><span>데이터 불러오는 중...</span>
-    </div>
-    <div id="manday-content" style="display:none;">
-      <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
-        <button onclick="downloadMandayExcel()" style="display:flex;align-items:center;gap:6px;background:#16A34A;border:none;border-radius:8px;color:#fff;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;box-shadow:0 2px 6px rgba(22,163,74,0.3);">
-          📥 엑셀 다운로드
-        </button>
-      </div>
-      <div id="manday-table-wrap"></div>
-    </div>
-  </div>
-
-  <!-- 정산서 -->
-  <div class="tab-content" id="tab-invoice"></div>
-
+  <!-- 인사 홈 -->
+  <div class="tab-content active" id="tab-home"></div>
   <!-- 근로자 명부 -->
   <div class="tab-content" id="tab-roster"></div>
-
   <!-- 근로계약서 -->
   <div class="tab-content" id="tab-labor"></div>
-
-  <!-- 잔금 관리 -->
-  <div class="tab-content" id="tab-balance">
-    <div class="coming-soon"><div style="font-size:32px">💼</div><br>잔금 관리<br><span style="font-size:12px;color:#9AAABF;">추후 구현 예정</span></div>
-  </div>
-
   <!-- 연봉계약서 -->
   <div class="tab-content" id="tab-annual"></div>
-
-  <!-- 급여명세서 -->
-  <div class="tab-content" id="tab-payslip"></div>
-
   <!-- 초과근로 -->
   <div class="tab-content" id="tab-overtime"></div>
+  <!-- 급여명세서 -->
+  <div class="tab-content" id="tab-payslip"></div>
+  <!-- 퇴직금 정산 (준비 중) -->
+  <div class="tab-content" id="tab-retire">
+    <div style="padding:16px;max-width:520px;margin:0 auto;">
+      <div class="coming-soon"><div style="font-size:32px">🧾</div><br>퇴직금 정산<br><span style="font-size:12px;color:#9AAABF;">재직기간 × 평균임금 기준 자동 산정<br>다음 단계에서 추가 예정</span></div>
+    </div>
+  </div>
+  </div>
 </div>
 
 <script>
 function showScreen(name) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(name+'-screen').classList.add('active');
-  if (name === 'app') showSectionSelect();
-}
-
-function showSectionSelect() {
-  // 섹션 선택 화면 표시
-  document.getElementById('section-select').style.display = 'block';
-  document.getElementById('tabbar-planning').style.display = 'none';
-  document.getElementById('tabbar-hr').style.display = 'none';
-  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-  document.getElementById('back-to-section').style.display = 'none';
-  document.getElementById('header-title').textContent = '정산도우미';
-}
-
-function enterSection(section) {
-  document.getElementById('section-select').style.display = 'none';
-  document.getElementById('back-to-section').style.display = 'flex';
-
-  if (section === 'planning') {
-    document.getElementById('header-title').textContent = '📊 기획';
-    document.getElementById('tabbar-planning').style.display = 'flex';
-    document.getElementById('tabbar-hr').style.display = 'none';
-    // 공정 현황 탭 활성화
-    document.querySelectorAll('#tabbar-planning .tab-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById('tb-progress').classList.add('active');
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-    document.getElementById('tab-progress').classList.add('active');
-    onProgressTabEnter();
-  } else {
-    document.getElementById('header-title').textContent = '👥 인사';
-    document.getElementById('tabbar-hr').style.display = 'flex';
-    document.getElementById('tabbar-planning').style.display = 'none';
-    // 근로자 명부 탭 활성화
-    document.querySelectorAll('#tabbar-hr .tab-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById('tb-roster').classList.add('active');
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-    document.getElementById('tab-roster').classList.add('active');
-    renderRosterMain();
+  if (name === 'app') {
+    const ui = document.getElementById('user-initial');
+    const sbu = document.getElementById('sb-user');
+    if (sbu && ui) sbu.textContent = ui.textContent;
+    goTab('home');
   }
 }
 
-function switchTab(btn, tabId) {
-  // 현재 활성 탭바에서만 active 처리
-  const activeBar = document.getElementById('tabbar-planning').style.display !== 'none'
-    ? document.getElementById('tabbar-planning')
-    : document.getElementById('tabbar-hr');
-  activeBar.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
+const HR_TABS = {
+  home:     { id:'tab-home',     title:'인사 홈',     fn:()=>renderHome() },
+  roster:   { id:'tab-roster',   title:'근로자 명부', fn:()=>renderRosterMain() },
+  labor:    { id:'tab-labor',    title:'근로계약서',  fn:()=>renderLaborMain() },
+  annual:   { id:'tab-annual',   title:'연봉계약서',  fn:()=>renderAnnualMain() },
+  overtime: { id:'tab-overtime', title:'초과근로',    fn:()=>renderOvertimeMain() },
+  payslip:  { id:'tab-payslip',  title:'급여명세서',  fn:()=>renderPayslipMain2() },
+  retire:   { id:'tab-retire',   title:'퇴직금 정산', fn:null },
+};
+
+function goTab(key) {
+  const t = HR_TABS[key]; if (!t) return;
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-  document.getElementById(tabId).classList.add('active');
+  const tc = document.getElementById(t.id); if (tc) tc.classList.add('active');
+  document.querySelectorAll('[data-navkey]').forEach(b =>
+    b.classList.toggle('active', b.getAttribute('data-navkey') === key));
+  const ht = document.getElementById('header-title'); if (ht) ht.textContent = t.title;
+  if (t.fn) t.fn();
+}
+window.goTab = goTab;
+
+async function renderHome() {
+  const el = document.getElementById('tab-home');
+  if (!el) return;
+  el.innerHTML = `<div style="padding:16px;max-width:760px;margin:0 auto;">
+    <div id="hm-alert-slot"></div>
+    <div class="hm-kgrid" id="hm-kpi">
+      ${[0,0,0,0].map(()=>'<div class="hm-kpi"><div class="lab">불러오는 중…</div><div class="val">·</div></div>').join('')}
+    </div>
+    <div class="hm-sec">업무 흐름 (의존 순서대로)</div>
+    <div class="hm-flow">
+      <div class="hm-fc full" onclick="goTab('roster')"><div class="hm-step">1</div><div class="hm-fb"><div class="stage">입사 · 인사 마스터 (모든 단계의 기준)</div><div class="ttl">근로자 명부</div><div class="hm-pills"><span class="hm-pill">등록</span><span class="hm-pill">조회 · 상세</span></div></div><div class="hm-chev">›</div></div>
+      <div class="hm-fc full" onclick="goTab('labor')"><div class="hm-step">2</div><div class="hm-fb"><div class="stage">계약 · 시급 입력 → 연봉 자동 산정</div><div class="ttl">계약서</div><div class="hm-pills"><span class="hm-pill">근로계약서</span><span class="hm-arrow">→</span><span class="hm-pill" onclick="event.stopPropagation();goTab('annual')">연봉계약서</span></div></div><div class="hm-chev">›</div></div>
+      <div class="hm-fc" onclick="goTab('overtime')"><div class="hm-step">3</div><div class="hm-fb"><div class="stage">근무 · 통상임금 자동 계산</div><div class="ttl">초과근로</div></div><div class="hm-chev">›</div></div>
+      <div class="hm-fc" onclick="goTab('payslip')"><div class="hm-step">4</div><div class="hm-fb"><div class="stage">급여 · 연봉 + 초과근로 연동</div><div class="ttl">급여명세서</div></div><div class="hm-chev">›</div></div>
+      <div class="hm-fc soon full"><div class="hm-step">5</div><div class="hm-fb"><div class="stage">퇴직 · 재직기간 × 평균임금</div><div class="ttl">퇴직금 정산 <span class="hm-soontag">준비 중</span></div></div></div>
+    </div>
+  </div>`;
+  loadHomeKpis();
+}
+window.renderHome = renderHome;
+
+async function loadHomeKpis() {
+  if (!window._db) { setTimeout(loadHomeKpis, 600); return; }
+  try {
+    const { getDocs, collection, doc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const now = new Date().toISOString().slice(0,10);
+    const ym  = now.slice(0,7);
+    const d30 = new Date(); d30.setDate(d30.getDate()+30);
+    const d30s = d30.toISOString().slice(0,10);
+
+    const wSnap = await getDocs(collection(window._db,'workers'));
+    const workers = []; wSnap.forEach(d=>workers.push({id:d.id, ...d.data()}));
+    const headcount = workers.length;
+
+    let noAnnual = 0, renew = 0, payDone = 0;
+    for (const w of workers) {
+      let aLatest='', aCnt=0;
+      try { const aS=await getDocs(collection(window._db,`annual_contracts/${w.id}/contracts`)); aCnt=aS.size; aS.forEach(c=>{const ed=c.data().endDate||''; if(ed>aLatest)aLatest=ed;}); } catch(e){}
+      if (aCnt===0) noAnnual++;
+      if (aLatest && aLatest <= d30s) renew++;
+      try { const pS=await getDoc(doc(window._db,`payslips/${w.id}/months`,ym)); if(pS.exists()) payDone++; } catch(e){}
+    }
+
+    let otHours=0, otAmt=0;
+    try { const otS=await getDocs(collection(window._db,'overtime')); otS.forEach(o=>{const d=o.data(); if((d.yearMonth||'')===ym){ otHours+=Number(d.hours)||0; otAmt+=Number(d.amount)||0; }}); } catch(e){}
+
+    const slot=document.getElementById('hm-alert-slot');
+    if (slot) slot.innerHTML = noAnnual>0
+      ? `<div class="hm-alert"><span style="font-size:14px">⚠️</span><span class="tx"><b>연봉계약서 없는 재직자 ${noAnnual}명</b> — 급여·초과근로 통상임금이 0원으로 계산됩니다</span><button class="go" onclick="goTab('annual')">지금 작성</button></div>`
+      : '';
+
+    const manWon = Math.round(otAmt/10000);
+    const kpi=document.getElementById('hm-kpi');
+    if (kpi) kpi.innerHTML = `
+      <div class="hm-kpi" onclick="goTab('roster')"><div class="lab">재직 인원</div><div class="val">${headcount}<small> 명</small></div><div class="act">명부 보기 ›</div></div>
+      <div class="hm-kpi ${renew>0?'warn':''}" onclick="goTab('annual')"><div class="lab">계약 갱신 필요</div><div class="val">${renew}<small> 명 · D-30 이내</small></div><div class="act">갱신하러 가기 ›</div></div>
+      <div class="hm-kpi ${payDone<headcount?'warn':''}" onclick="goTab('payslip')"><div class="lab">이번 달 급여명세서</div><div class="val">${payDone}<small> / ${headcount} 작성</small></div><div class="act">작성하러 가기 ›</div></div>
+      <div class="hm-kpi" onclick="goTab('overtime')"><div class="lab">이번 달 초과근로</div><div class="val">${otHours}<small> h · ${manWon}만원</small></div><div class="act">현황 보기 ›</div></div>`;
+  } catch(e) {
+    const kpi=document.getElementById('hm-kpi');
+    if (kpi) kpi.innerHTML = '<div style="grid-column:1/-1;color:#9AAABF;font-size:12px;padding:12px;">현황을 불러오지 못했습니다.</div>';
+  }
 }
 
 window.addEventListener('DOMContentLoaded', () => {
