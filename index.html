@@ -1637,14 +1637,14 @@ function renderPayslipWriteForm(el, workers, months, calcPayDate) {
       </div>
       ${field2('상여금', `
         <input type="number" value="${ps.bonus}" placeholder="0"
-          oninput="ps.bonus=this.value;window.psRefresh();" ${inp2Style}>
+          onchange="ps.bonus=this.value;window.psRefresh();" ${inp2Style}>
         <div style="font-size:10px;color:#9AAABF;margin-top:3px;">⏱ 초과근로 탭 누적 수당 자동 연동 · 직접 수정 가능</div>
       `)}
       ${field2('특별성과급', `<input type="number" value="${ps.specialBonus}" placeholder="0"
-        oninput="ps.specialBonus=this.value;window.psRefresh();" ${inp2Style}>`)}
+        onchange="ps.specialBonus=this.value;window.psRefresh();" ${inp2Style}>`)}
       ${field2('특근수당', `
         <input type="number" value="${ps.extraPay}" placeholder="0"
-          oninput="ps.extraPay=this.value;window.psRefresh();" ${inp2Style}>
+          onchange="ps.extraPay=this.value;window.psRefresh();" ${inp2Style}>
 
       `)}
       <div style="display:flex;justify-content:space-between;padding:10px 12px;background:#E8F0FB;border-radius:8px;font-size:14px;font-weight:700;margin-top:4px;">
