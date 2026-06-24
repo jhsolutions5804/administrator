@@ -69,6 +69,24 @@
   onAuthStateChanged(auth, async (user) => {
     if (!user) { showScreen('login'); return; }
     currentUser = user;
+
+    // 포털(?via=portal) 경유: 포털 승인(portal_users) + 인사(hr) 권한으로 접근 허용
+    const viaPortal = new URLSearchParams(location.search).get('via') === 'portal';
+    if (viaPortal) {
+      try {
+        const ps = await getDoc(doc(db, 'portal_users', user.uid));
+        if (ps.exists()) {
+          const d = ps.data();
+          if (d.status === 'approved' && (d.admin === true || (d.perms && d.perms.hr === true))) {
+            document.getElementById('user-initial').textContent =
+              (user.displayName || user.email)[0].toUpperCase();
+            showScreen('app');
+            return;
+          }
+        }
+      } catch(e) {}
+    }
+
     const snap = await getDoc(doc(db, 'allowed_users', user.email));
     if (snap.exists()) {
       document.getElementById('user-initial').textContent =
