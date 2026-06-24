@@ -1441,6 +1441,56 @@ let ps = {
   dormitory: '',   // 기숙사 공제
 };
 
+// ── 급여명세서 디버그: 초과근로 연동 상태 확인 ──
+window.psDebugOT = async () => {
+  const dbg = document.getElementById('ps-ot-debug');
+  if (!dbg) return;
+  dbg.style.display = 'block';
+  dbg.innerHTML = '⏳ 확인 중...';
+
+  const name = ps.workerData?.name;
+  const month = ps.month;
+
+  if (!name || !month) {
+    dbg.innerHTML = '❌ 근로자 또는 기준월이 선택되지 않았습니다.';
+    return;
+  }
+
+  try {
+    const { collection, query, where, getDocs } =
+      await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+
+    // overtime 컬렉션 전체 조회
+    const allSnap = await getDocs(collection(window._db, 'overtime'));
+    let allRows = [];
+    allSnap.forEach(d => allRows.push({id: d.id, ...d.data()}));
+
+    // 해당 월 + 해당 이름 필터
+    const filtered = allRows.filter(r => r.yearMonth === month && r.name === name);
+    const total = filtered.reduce((s, r) => s + Number(r.amount||0), 0);
+
+    let html = `<div><b>조회 조건:</b> ${name} / ${month}</div>`;
+    html += `<div><b>overtime 전체 문서 수:</b> ${allRows.length}건</div>`;
+    html += `<div><b>조건 일치 문서 수:</b> ${filtered.length}건 / 합계: ${total.toLocaleString()}원</div>`;
+
+    if (allRows.length > 0) {
+      html += `<div style="margin-top:4px;"><b>전체 목록:</b></div>`;
+      allRows.slice(0,10).forEach(r => {
+        const match = (r.yearMonth === month && r.name === name);
+        html += `<div style="color:${match?'#1D5BA6':'#9AAABF'};">${match?'✅':'·'} ${r.date||'-'} ${r.name||'-'} ${r.hours||0}h ${Number(r.amount||0).toLocaleString()}원 [yearMonth:${r.yearMonth||'-'}]</div>`;
+      });
+      if (allRows.length > 10) html += `<div>... 외 ${allRows.length-10}건</div>`;
+    } else {
+      html += `<div style="color:#dc2626;">⚠️ overtime 컬렉션이 비어있습니다. 초과근로 탭에서 데이터를 먼저 입력하세요.</div>`;
+    }
+
+    html += `<div style="margin-top:4px;color:#1D5BA6;font-weight:700;">현재 ps.bonus = ${ps.bonus}</div>`;
+    dbg.innerHTML = html;
+  } catch(e) {
+    dbg.innerHTML = `❌ 오류: ${e.message}`;
+  }
+};
+
 // ── 급여명세서-초과근로 연동: 해당 월 초과근로수당 합계 조회 ──
 // ps 객체와 함께 상단에 정의해서 어느 탭에서 먼저 로드되어도 사용 가능
 window.getOvertimeAmountForPayslip = async (name, yearMonth) => {
@@ -1660,7 +1710,11 @@ function renderPayslipWriteForm(el, workers, months, calcPayDate) {
       ${field2('상여금', `
         <input type="number" value="${ps.bonus}" placeholder="0"
           oninput="ps.bonus=Number(this.value);window.psRefresh();" ${inp2Style}>
-        <div style="font-size:10px;color:#9AAABF;margin-top:3px;">⏱ 초과근로 탭 해당 월 누계 수당 자동 연동 · 직접 수정 가능</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:4px;">
+          <div style="font-size:10px;color:#9AAABF;flex:1;">⏱ 초과근로 탭 해당 월 누계 수당 자동 연동 · 직접 수정 가능</div>
+          <button onclick="psDebugOT()" style="font-size:10px;padding:2px 8px;background:#F0F4F9;border:1px solid #DDE4EF;border-radius:6px;color:#5C6F8A;cursor:pointer;white-space:nowrap;">🔍 연동 확인</button>
+        </div>
+        <div id="ps-ot-debug" style="display:none;margin-top:6px;font-size:11px;background:#F8FAFD;border-radius:6px;padding:8px 10px;color:#5C6F8A;"></div>
       `)}
       ${field2('특별성과급', `<input type="number" value="${ps.specialBonus}" placeholder="0"
         onchange="ps.specialBonus=this.value;window.psRefresh();" ${inp2Style}>`)}
