@@ -688,6 +688,8 @@ body { font-family:-apple-system,'Apple SD Gothic Neo','Pretendard',sans-serif; 
   .tab-content { max-width:760px; }
 }
 @media (max-width:899px){ #hr-sidebar { display:none !important; } }
+/* 포털에 임베드되면 포털 왼쪽 메뉴가 내비를 제공하므로 자체 사이드바 숨김 */
+.portal-embed #hr-sidebar { display:none !important; }
 .sb-brand { display:flex; align-items:center; gap:9px; padding:4px 6px 14px; border-bottom:1px solid rgba(255,255,255,0.1); margin-bottom:8px; }
 .sb-logo { width:30px; height:30px; border-radius:8px; background:#fff; color:#13335C; font-weight:800; font-size:13px; display:flex; align-items:center; justify-content:center; }
 .sb-brand .nm { font-size:13px; font-weight:700; color:#fff; line-height:1.2; }
@@ -834,9 +836,18 @@ function showScreen(name) {
     const ui = document.getElementById('user-initial');
     const sbu = document.getElementById('sb-user');
     if (sbu && ui) sbu.textContent = ui.textContent;
-    goTab('home');
+    const params = new URLSearchParams(location.search);
+    if (params.get('via') === 'portal') document.documentElement.classList.add('portal-embed');
+    const t = params.get('tab');
+    goTab((t && HR_TABS[t]) ? t : 'home');
   }
 }
+
+// 포털 사이드바에서 보낸 탭 전환 메시지 수신
+window.addEventListener('message', (e) => {
+  const d = e.data;
+  if (d && d.source === 'jh-portal' && d.action === 'goTab' && HR_TABS[d.key]) goTab(d.key);
+});
 
 const HR_TABS = {
   home:     { id:'tab-home',     title:'인사 홈',     fn:()=>renderHome() },
