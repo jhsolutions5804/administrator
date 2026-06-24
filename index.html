@@ -634,7 +634,7 @@ body { font-family:-apple-system,'Apple SD Gothic Neo','Pretendard',sans-serif; 
 .tab-btn.active { color:#1D5BA6; border-bottom-color:#1D5BA6; font-weight:700; }
 
 /* 콘텐츠 */
-.tab-content { display:none; padding:20px 16px; max-width:520px; margin:0 auto; width:100%; }
+.tab-content { display:none; padding:20px 24px; width:100%; }
 .tab-content.active { display:block; }
 .coming-soon { text-align:center; padding:60px 20px; color:#9AAABF; font-size:14px; line-height:2; }
 
@@ -685,7 +685,7 @@ body { font-family:-apple-system,'Apple SD Gothic Neo','Pretendard',sans-serif; 
   #hr-sidebar { display:flex; flex-direction:column; width:212px; flex:0 0 auto; background:#13335C; color:#CDD8E8; padding:16px 12px; min-height:100vh; }
   #app-screen .app-header { display:none; }
   #app-screen #tabbar-hr { display:none; }
-  .tab-content { max-width:760px; }
+  .tab-content { max-width:none; }
 }
 @media (max-width:899px){ #hr-sidebar { display:none !important; } }
 /* 포털에 임베드되면 포털 왼쪽 메뉴가 내비를 제공하므로 자체 사이드바 숨김 */
@@ -873,7 +873,7 @@ window.goTab = goTab;
 async function renderHome() {
   const el = document.getElementById('tab-home');
   if (!el) return;
-  el.innerHTML = `<div style="padding:16px;max-width:760px;margin:0 auto;">
+  el.innerHTML = `<div style="padding:20px 24px;max-width:840px;margin:0 auto;">
     <div id="hm-alert-slot"></div>
     <div class="hm-kgrid" id="hm-kpi">
       ${[0,0,0,0].map(()=>'<div class="hm-kpi"><div class="lab">불러오는 중…</div><div class="val">·</div></div>').join('')}
@@ -2236,7 +2236,7 @@ const selectMain = (icon, label, fn, desc) => `
     <div style="flex:1;"><div style="font-size:16px;font-weight:800;color:${C2.text};margin-bottom:3px;">${label}</div><div style="font-size:12px;color:${C2.sub};">${desc}</div></div>
     <div style="font-size:20px;color:${C2.mute};">›</div>
   </button>`;
-const wrap2 = (body) => `<div style="padding:16px;max-width:520px;margin:0 auto;">${body}</div>`;
+const wrap2 = (body) => `<div style="padding:20px 24px;max-width:840px;margin:0 auto;">${body}</div>`;
 
 async function getWorkersList() {
   if (!window._db) return [];
