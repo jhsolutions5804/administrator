@@ -3188,50 +3188,47 @@ window.annualPreviewSaved2=(d)=>{annualForm2={...d};annualPreview2();};
 // ⏱ 초과근로수당 탭
 // =============================================
 
-// 직원별 직책 (통상임금은 연봉계약서에서 실시간 계산)
-const OT_STAFF = {
-  '윤석원': { title:'과장', workerId: null },
-  '정다애': { title:'대리', workerId: null },
-  '이한영': { title:'사원', workerId: null },
-  '김영서': { title:'사원', workerId: null },
-};
-const OT_NAMES = Object.keys(OT_STAFF);
+// 통상임금 캐시 (name → { rate, basic, fixedOt, fixedNight, weekly })
+let _otWageCache = {};
+function otClearWageCache() { _otWageCache = {}; }
 
-// 통상임금 캐시
-let _otWageCache = {}; // name → { rate, basic, fixedOt, fixedNight, weekly, total }
-
-// workers 컬렉션에서 이름→workerId 매핑 + 연봉계약서에서 통상임금 계산
-async function otGetWage(name) {
+// 연봉계약서에서 통상임금 계산
+async function otGetWage(workerId, name) {
   if (_otWageCache[name]) return _otWageCache[name];
   try {
     const { collection, getDocs, query, orderBy, limit } =
       await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-    // 1. workerId 찾기
-    const wSnap = await getDocs(collection(window._db, 'workers'));
-    let workerId = null;
-    wSnap.forEach(d => { if (d.data().name === name) workerId = d.id; });
-    if (!workerId) return null;
-    // 2. 최신 연봉계약서 조회
     const cSnap = await getDocs(
-      query(collection(window._db, `annual_contracts/${workerId}/contracts`), orderBy('contractDate','desc'), limit(1))
+      query(collection(window._db, `annual_contracts/${workerId}/contracts`),
+            orderBy('contractDate','desc'), limit(1))
     );
     if (cSnap.empty) return null;
     const c = cSnap.docs[0].data();
-    const hourly = Number(c.hourly || 0);
+    const hourly  = Number(c.hourly || 0);
     const empType = c.empType || 'field';
     const sal = calcAnnualSalary(hourly, empType);
-    // 통상임금 = (기본 + 고정연장 + 고정야간 + 주휴) / 209
-    const ordinaryWage = Math.round((sal.basic + sal.fixedOt + sal.fixedNight + sal.weekly) / 209);
-    const result = { rate: ordinaryWage, basic: sal.basic, fixedOt: sal.fixedOt,
-                     fixedNight: sal.fixedNight, weekly: sal.weekly,
-                     total: sal.total, hourly, empType, workerId };
+    const rate = Math.round((sal.basic + sal.fixedOt + sal.fixedNight + sal.weekly) / 209);
+    const result = { rate, ...sal, hourly, empType, workerId };
     _otWageCache[name] = result;
     return result;
   } catch(e) { console.error('otGetWage 오류:', e); return null; }
 }
 
-// 통상임금 캐시 초기화 (페이지 재진입 시)
-function otClearWageCache() { _otWageCache = {}; }
+// 근로자 명부에서 목록 로드 (name → {workerId, rank})
+async function otGetWorkerList() {
+  try {
+    const { getDocs, collection } =
+      await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const snap = await getDocs(collection(window._db, 'workers'));
+    const list = [];
+    snap.forEach(d => {
+      const w = d.data();
+      list.push({ id: d.id, name: w.name, rank: w.rank || '' });
+    });
+    list.sort((a,b) => a.name.localeCompare(b.name, 'ko'));
+    return list;
+  } catch(e) { return []; }
+}
 
 // 현재 조회 월 상태
 let otYear  = new Date().getFullYear();
@@ -3248,46 +3245,30 @@ window.renderOvertimeMain = () => {
         ${selectMain('🔍','직원별 조회','renderOvertimeByPerson()','개인 날짜별 내역 확인')}
         ${selectMain('➕','초과근로 입력','renderOvertimeAdd()','날짜·직원·시간 입력 → 수당 자동 계산')}
       </div>
-      <div style="margin-top:12px;padding:10px 12px;background:#F0F4F9;border-radius:8px;font-size:11px;color:#5C6F8A;">
-        💡 통상임금 = (기본근로수당 + 고정연장 + 고정야간 + 주휴) ÷ 209<br>
-        연봉계약서 기준으로 자동 계산되며, 급여명세서 특근수당에 연동됩니다.
+      <div style="margin-top:12px;padding:10px 12px;background:#F0F4F9;border-radius:8px;font-size:11px;color:#5C6F8A;line-height:1.6;">
+        💡 <strong>통상임금</strong> = (기본+고정연장+고정야간+주휴) ÷ 209<br>
+        연봉계약서 기준 자동 계산 · 누계 수당은 급여명세서 <strong>상여금</strong>에 자동 연동
+      </div>
+      <div style="margin-top:10px;">
+        <button onclick="otClearAllData()" style="width:100%;padding:9px;background:#fff0f0;border:1px dashed #fca5a5;border-radius:8px;color:#dc2626;font-size:12px;cursor:pointer;">
+          🗑 전체 데이터 초기화
+        </button>
       </div>
     `)}
-    <div style="margin-top:12px;">
-      <button onclick="otMigrateInitialData()" style="width:100%;padding:10px;background:#F0F4F9;border:1px dashed #9AAABF;border-radius:10px;color:#5C6F8A;font-size:12px;cursor:pointer;">
-        📦 기존 데이터 초기 입력 (6월분 7건)
-      </button>
-    </div>
   `;
 };
 
-window.otMigrateInitialData = async () => {
-  if (!confirm('6월 초과근로 기존 데이터 7건을 Firebase에 입력하시겠습니까?\n(중복 방지를 위해 기존 데이터가 없을 때만 실행하세요.)')) return;
-  const initialData = [
-    {date:'2026-06-15', name:'윤석원', hours:1},
-    {date:'2026-06-15', name:'정다애', hours:1},
-    {date:'2026-06-15', name:'김영서', hours:1},
-    {date:'2026-06-17', name:'정다애', hours:5},
-    {date:'2026-06-17', name:'이한영', hours:2},
-    {date:'2026-06-19', name:'정다애', hours:1},
-    {date:'2026-06-22', name:'정다애', hours:2},
-  ];
+// 전체 초기화
+window.otClearAllData = async () => {
+  if (!confirm('overtime 컬렉션의 모든 데이터를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) return;
   try {
-    const { collection, addDoc, serverTimestamp } =
+    const { collection, getDocs, deleteDoc, doc } =
       await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-    let count = 0;
-    for (const r of initialData) {
-      const wage = await otGetWage(r.name);
-      const rate   = wage ? wage.rate : 0;
-      const amount = Math.round(rate * r.hours);
-      await addDoc(collection(window._db,'overtime'), {
-        date:r.date, name:r.name, hours:r.hours, amount, rate, yearMonth:r.date.slice(0,7),
-        savedAt: serverTimestamp()
-      });
-      count++;
-    }
-    _otWageCache = {};
-    alert(`✅ 기존 데이터 ${count}건 입력 완료!\n(연봉계약서가 없는 직원은 수당이 0원으로 저장됩니다. 연봉계약서 등록 후 수정 필요)`);
+    const snap = await getDocs(collection(window._db,'overtime'));
+    const dels = [];
+    snap.forEach(d => dels.push(deleteDoc(doc(window._db,'overtime',d.id))));
+    await Promise.all(dels);
+    alert(`✅ ${dels.length}건 삭제 완료`);
     renderOvertimeMain();
   } catch(e) { alert('오류: '+e.message); }
 };
@@ -3297,7 +3278,7 @@ window.renderOvertimeSummary = async () => {
   const el = document.getElementById('tab-overtime');
   el.innerHTML = `
     ${backBtn2('renderOvertimeMain()')}
-    ${card2(`📊 전체 현황`,`
+    ${card2('📊 전체 현황',`
       <div class="month-nav" style="margin-bottom:12px;">
         <button class="nav-btn" onclick="otChangeMonth(-1)">◀</button>
         <span class="month-label" id="ot-month-label">${otYear}년 ${otMonth}월</span>
@@ -3326,24 +3307,23 @@ async function otLoadSummary() {
     const { collection, query, where, getDocs } =
       await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
     const prefix = `${otYear}-${String(otMonth).padStart(2,'0')}`;
-    const q = query(collection(window._db,'overtime'), where('yearMonth','==',prefix));
-    const snap = await getDocs(q);
+    const snap = await getDocs(query(collection(window._db,'overtime'), where('yearMonth','==',prefix)));
 
-    const totals = {};
-    OT_NAMES.forEach(n => totals[n] = {hours:0, amount:0});
-    const rows = [];
+    // 직원별 집계
+    const totals = {}; // name → {hours, amount, rank}
+    const rows   = [];
     snap.forEach(d => {
-      const r = { id: d.id, ...d.data() };   // ✅ d.id 포함
+      const r = { id: d.id, ...d.data() };
       rows.push(r);
-      if (totals[r.name]) {
-        totals[r.name].hours  += Number(r.hours  || 0);
-        totals[r.name].amount += Number(r.amount || 0);
-      }
+      if (!totals[r.name]) totals[r.name] = { hours:0, amount:0, rank: r.rank||'' };
+      totals[r.name].hours  += Number(r.hours  || 0);
+      totals[r.name].amount += Number(r.amount || 0);
     });
     rows.sort((a,b) => a.date < b.date ? -1 : 1);
+    const names = Object.keys(totals).sort((a,b)=>a.localeCompare(b,'ko'));
 
-    const totalHours  = OT_NAMES.reduce((s,n)=>s+totals[n].hours, 0);
-    const totalAmount = OT_NAMES.reduce((s,n)=>s+totals[n].amount, 0);
+    const totalHours  = names.reduce((s,n)=>s+totals[n].hours, 0);
+    const totalAmount = names.reduce((s,n)=>s+totals[n].amount, 0);
 
     let html = `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
@@ -3357,43 +3337,41 @@ async function otLoadSummary() {
         </div>
       </div>`;
 
-    // 직원별 누계 테이블
-    html += `<table style="width:100%;border-collapse:collapse;font-size:13px;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(29,91,166,0.06);margin-bottom:14px;">
-      <thead><tr style="background:#E8F0FB;">
-        <th style="padding:9px 8px;text-align:left;color:#1D5BA6;font-size:11px;">이름</th>
-        <th style="padding:9px 8px;text-align:center;color:#1D5BA6;font-size:11px;">직책</th>
-        <th style="padding:9px 8px;text-align:center;color:#1D5BA6;font-size:11px;">시간</th>
-        <th style="padding:9px 8px;text-align:right;color:#1D5BA6;font-size:11px;">수당</th>
-      </tr></thead><tbody>`;
-    OT_NAMES.forEach((n,i) => {
-      const bg = i%2===0 ? '#fff' : '#F7F8FA';
-      html += `<tr style="background:${bg};">
-        <td style="padding:9px 8px;font-weight:600;">${n}</td>
-        <td style="padding:9px 8px;text-align:center;color:#5C6F8A;">${OT_STAFF[n].title}</td>
-        <td style="padding:9px 8px;text-align:center;">${totals[n].hours}h</td>
-        <td style="padding:9px 8px;text-align:right;">${totals[n].amount.toLocaleString()}원</td>
-      </tr>`;
-    });
-    html += `<tr style="background:#E6F1FB;font-weight:700;">
-      <td colspan="2" style="padding:9px 8px;">합계</td>
-      <td style="padding:9px 8px;text-align:center;">${totalHours}h</td>
-      <td style="padding:9px 8px;text-align:right;">${totalAmount.toLocaleString()}원</td>
-    </tr></tbody></table>`;
-
-    // 날짜별 상세
-    if (rows.length > 0) {
-      html += `<div style="font-size:12px;font-weight:700;color:#1D5BA6;margin:0 0 8px;border-left:3px solid #1D5BA6;padding-left:8px;">날짜별 상세 내역</div>`;
-      html += `<table style="width:100%;border-collapse:collapse;font-size:12px;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(29,91,166,0.06);">
+    if (names.length > 0) {
+      html += `<table style="width:100%;border-collapse:collapse;font-size:13px;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(29,91,166,0.06);margin-bottom:14px;">
         <thead><tr style="background:#E8F0FB;">
-          <th style="padding:8px;text-align:left;color:#1D5BA6;font-size:11px;">날짜</th>
-          <th style="padding:8px;text-align:left;color:#1D5BA6;font-size:11px;">이름</th>
-          <th style="padding:8px;text-align:center;color:#1D5BA6;font-size:11px;">시간</th>
-          <th style="padding:8px;text-align:right;color:#1D5BA6;font-size:11px;">수당</th>
-          <th style="padding:8px;text-align:center;color:#1D5BA6;font-size:11px;">관리</th>
+          <th style="padding:9px 8px;text-align:left;color:#1D5BA6;font-size:11px;">이름</th>
+          <th style="padding:9px 8px;text-align:center;color:#1D5BA6;font-size:11px;">직급</th>
+          <th style="padding:9px 8px;text-align:center;color:#1D5BA6;font-size:11px;">시간</th>
+          <th style="padding:9px 8px;text-align:right;color:#1D5BA6;font-size:11px;">수당</th>
         </tr></thead><tbody>`;
+      names.forEach((n,i) => {
+        html += `<tr style="background:${i%2===0?'#fff':'#F7F8FA'};">
+          <td style="padding:9px 8px;font-weight:600;">${n}</td>
+          <td style="padding:9px 8px;text-align:center;color:#5C6F8A;">${totals[n].rank}</td>
+          <td style="padding:9px 8px;text-align:center;">${totals[n].hours}h</td>
+          <td style="padding:9px 8px;text-align:right;">${totals[n].amount.toLocaleString()}원</td>
+        </tr>`;
+      });
+      html += `<tr style="background:#E6F1FB;font-weight:700;">
+        <td colspan="2" style="padding:9px 8px;">합계</td>
+        <td style="padding:9px 8px;text-align:center;">${totalHours}h</td>
+        <td style="padding:9px 8px;text-align:right;">${totalAmount.toLocaleString()}원</td>
+      </tr></tbody></table>`;
+    }
+
+    if (rows.length > 0) {
+      html += `<div style="font-size:12px;font-weight:700;color:#1D5BA6;margin:0 0 8px;border-left:3px solid #1D5BA6;padding-left:8px;">날짜별 상세 내역</div>
+        <table style="width:100%;border-collapse:collapse;font-size:12px;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(29,91,166,0.06);">
+          <thead><tr style="background:#E8F0FB;">
+            <th style="padding:8px;text-align:left;color:#1D5BA6;font-size:11px;">날짜</th>
+            <th style="padding:8px;text-align:left;color:#1D5BA6;font-size:11px;">이름</th>
+            <th style="padding:8px;text-align:center;color:#1D5BA6;font-size:11px;">시간</th>
+            <th style="padding:8px;text-align:right;color:#1D5BA6;font-size:11px;">수당</th>
+            <th style="padding:8px;text-align:center;color:#1D5BA6;font-size:11px;">관리</th>
+          </tr></thead><tbody>`;
       rows.forEach((r,i) => {
-        const bg = i%2===0?'#fff':'#F7F8FA';
-        html += `<tr style="background:${bg};">
+        html += `<tr style="background:${i%2===0?'#fff':'#F7F8FA'};">
           <td style="padding:8px;">${r.date.slice(5).replace('-','/')}</td>
           <td style="padding:8px;">${r.name}</td>
           <td style="padding:8px;text-align:center;">${r.hours}h</td>
@@ -3415,49 +3393,52 @@ async function otLoadSummary() {
 }
 
 // ── 직원별 조회 ──
-window.renderOvertimeByPerson = () => {
+window.renderOvertimeByPerson = async () => {
   const el = document.getElementById('tab-overtime');
+  el.innerHTML = `${backBtn2('renderOvertimeMain()')}${card2('🔍 직원별 조회','<div style="text-align:center;padding:20px;"><div class="spinner"></div></div>')}`;
+  const workers = await otGetWorkerList();
   el.innerHTML = `
     ${backBtn2('renderOvertimeMain()')}
-    ${card2('🔍 직원별 조회',`
-      <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;">
-        ${OT_NAMES.map(n => `
-          <button onclick="renderOvertimePersonDetail('${n}')"
-            style="display:flex;justify-content:space-between;align-items:center;background:#F0F4F9;border:1px solid #DDE4EF;border-radius:10px;padding:12px 14px;cursor:pointer;font-size:13px;font-weight:600;color:#1A2540;">
-            <span>${n} <span style="font-size:11px;color:#9AAABF;font-weight:400;">${OT_STAFF[n].title}</span></span>
-            <span style="color:#1D5BA6;">▶</span>
-          </button>`).join('')}
-      </div>
-    `)}
+    ${card2('🔍 직원별 조회', workers.length === 0
+      ? `<div style="text-align:center;color:#9AAABF;padding:20px;font-size:13px;">근로자 명부에 등록된 직원이 없습니다.</div>`
+      : `<div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;">
+          ${workers.map(w => `
+            <button onclick="renderOvertimePersonDetail('${w.id}','${w.name}','${w.rank}')"
+              style="display:flex;justify-content:space-between;align-items:center;background:#F0F4F9;border:1px solid #DDE4EF;border-radius:10px;padding:12px 14px;cursor:pointer;font-size:13px;font-weight:600;color:#1A2540;">
+              <span>${w.name} <span style="font-size:11px;color:#9AAABF;font-weight:400;">${w.rank}</span></span>
+              <span style="color:#1D5BA6;">▶</span>
+            </button>`).join('')}
+         </div>`
+    )}
   `;
 };
 
-window.renderOvertimePersonDetail = async (name) => {
+window.renderOvertimePersonDetail = async (workerId, name, rank) => {
   const el = document.getElementById('tab-overtime');
   el.innerHTML = `
     ${backBtn2('renderOvertimeByPerson()')}
-    ${card2(`🔍 ${name} ${OT_STAFF[name].title} — 초과근로 내역`,`
+    ${card2(`🔍 ${name} ${rank} — 초과근로 내역`,`
       <div class="month-nav" style="margin-bottom:12px;">
-        <button class="nav-btn" onclick="otChangeMonthPerson(-1,'${name}')">◀</button>
+        <button class="nav-btn" onclick="otChangeMonthPerson(-1,'${workerId}','${name}','${rank}')">◀</button>
         <span class="month-label" id="ot-person-month-label">${otYear}년 ${otMonth}월</span>
-        <button class="nav-btn" onclick="otChangeMonthPerson(1,'${name}')">▶</button>
+        <button class="nav-btn" onclick="otChangeMonthPerson(1,'${workerId}','${name}','${rank}')">▶</button>
       </div>
       <div id="ot-person-body"><div style="text-align:center;padding:30px;"><div class="spinner"></div></div></div>
     `)}
   `;
-  await otLoadPersonDetail(name);
+  await otLoadPersonDetail(workerId, name, rank);
 };
 
-window.otChangeMonthPerson = async (delta, name) => {
+window.otChangeMonthPerson = async (delta, workerId, name, rank) => {
   otMonth += delta;
   if (otMonth > 12) { otMonth = 1; otYear++; }
   if (otMonth < 1)  { otMonth = 12; otYear--; }
   const lbl = document.getElementById('ot-person-month-label');
   if (lbl) lbl.textContent = `${otYear}년 ${otMonth}월`;
-  await otLoadPersonDetail(name);
+  await otLoadPersonDetail(workerId, name, rank);
 };
 
-async function otLoadPersonDetail(name) {
+async function otLoadPersonDetail(workerId, name, rank) {
   const wrap = document.getElementById('ot-person-body');
   if (!wrap) return;
   wrap.innerHTML = `<div style="text-align:center;padding:30px;"><div class="spinner"></div></div>`;
@@ -3465,10 +3446,8 @@ async function otLoadPersonDetail(name) {
     const { collection, query, where, getDocs } =
       await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
     const prefix = `${otYear}-${String(otMonth).padStart(2,'0')}`;
-    const q = query(collection(window._db,'overtime'),
-                    where('yearMonth','==',prefix),
-                    where('name','==',name));
-    const snap = await getDocs(q);
+    const snap = await getDocs(query(collection(window._db,'overtime'),
+                    where('yearMonth','==',prefix), where('name','==',name)));
     const rows = [];
     snap.forEach(d => rows.push({id:d.id,...d.data()}));
     rows.sort((a,b) => a.date < b.date ? -1 : 1);
@@ -3476,9 +3455,9 @@ async function otLoadPersonDetail(name) {
     const totalHours  = rows.reduce((s,r)=>s+Number(r.hours||0),0);
     const totalAmount = rows.reduce((s,r)=>s+Number(r.amount||0),0);
 
-    // 통상임금 정보 표시
-    const wage = await otGetWage(name);
-    const wageInfo = wage
+    // 통상임금 정보
+    const wage = await otGetWage(workerId, name);
+    const wageHtml = wage
       ? `<div style="background:#F0F4F9;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:11px;color:#5C6F8A;">
           <div style="font-weight:700;color:#1D5BA6;margin-bottom:4px;">📐 통상임금 계산 기준</div>
           <div style="display:flex;justify-content:space-between;"><span>기본근로수당</span><span>${(wage.basic||0).toLocaleString()}원</span></div>
@@ -3489,9 +3468,9 @@ async function otLoadPersonDetail(name) {
             <span>시간당 통상임금</span><span>${(wage.rate||0).toLocaleString()}원/h</span>
           </div>
         </div>`
-      : `<div style="background:#fff3cd;border-radius:8px;padding:10px;margin-bottom:12px;font-size:11px;color:#856404;">⚠️ 연봉계약서가 없습니다. 통상임금을 계산할 수 없습니다.</div>`;
+      : `<div style="background:#fff3cd;border-radius:8px;padding:10px;margin-bottom:12px;font-size:11px;color:#856404;">⚠️ 연봉계약서가 없습니다. 연봉계약서 등록 후 사용 가능합니다.</div>`;
 
-    let html = wageInfo + `
+    let html = wageHtml + `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
         <div style="background:#F0F4F9;border-radius:10px;padding:12px;">
           <div style="font-size:11px;color:#9AAABF;">누계 시간</div>
@@ -3512,14 +3491,13 @@ async function otLoadPersonDetail(name) {
           <th style="padding:9px 8px;text-align:center;color:#1D5BA6;font-size:11px;">관리</th>
         </tr></thead><tbody>`;
       rows.forEach((r,i) => {
-        const bg = i%2===0?'#fff':'#F7F8FA';
-        html += `<tr style="background:${bg};">
+        html += `<tr style="background:${i%2===0?'#fff':'#F7F8FA'};">
           <td style="padding:9px 8px;">${r.date.slice(5).replace('-','/')}</td>
           <td style="padding:9px 8px;text-align:center;">${r.hours}h</td>
           <td style="padding:9px 8px;text-align:right;">${Number(r.amount||0).toLocaleString()}원</td>
           <td style="padding:9px 8px;text-align:center;">
-            <button onclick="renderOvertimeEdit('${r.id}','${name}','person')" style="background:#E8F0FB;border:none;border-radius:6px;color:#1D5BA6;padding:4px 8px;font-size:11px;cursor:pointer;margin-right:4px;">수정</button>
-            <button onclick="otDeletePerson('${r.id}','${name}')" style="background:#fee2e2;border:none;border-radius:6px;color:#dc2626;padding:4px 8px;font-size:11px;cursor:pointer;">삭제</button>
+            <button onclick="renderOvertimeEdit('${r.id}','${workerId}','${name}','${rank}','person')" style="background:#E8F0FB;border:none;border-radius:6px;color:#1D5BA6;padding:4px 8px;font-size:11px;cursor:pointer;margin-right:4px;">수정</button>
+            <button onclick="otDeletePerson('${r.id}','${workerId}','${name}','${rank}')" style="background:#fee2e2;border:none;border-radius:6px;color:#dc2626;padding:4px 8px;font-size:11px;cursor:pointer;">삭제</button>
           </td>
         </tr>`;
       });
@@ -3534,19 +3512,28 @@ async function otLoadPersonDetail(name) {
 }
 
 // ── 입력 폼 ──
-window.renderOvertimeAdd = () => {
+window.renderOvertimeAdd = async () => {
   const el = document.getElementById('tab-overtime');
-  const today = new Date().toISOString().slice(0,10);
+  el.innerHTML = `${backBtn2('renderOvertimeMain()')}${card2('➕ 초과근로 입력','<div style="text-align:center;padding:20px;"><div class="spinner"></div></div>')}`;
+  const workers = await otGetWorkerList();
+  const today   = new Date().toISOString().slice(0,10);
   el.innerHTML = `
     ${backBtn2('renderOvertimeMain()')}
     ${card2('➕ 초과근로 입력',`
-      ${field2('날짜', `<input type="date" id="ot-date" value="${today}" style="width:100%;padding:9px 12px;border:1px solid #DDE4EF;border-radius:8px;font-size:14px;" onchange="otCalcPreview()">`)}
-      ${field2('직원', `<select id="ot-name" style="width:100%;padding:9px 12px;border:1px solid #DDE4EF;border-radius:8px;font-size:14px;" onchange="otCalcPreview()">
-        ${OT_NAMES.map(n=>`<option value="${n}">${n} ${OT_STAFF[n].title}</option>`).join('')}
+      ${field2('날짜', `<input type="date" id="ot-date" value="${today}"
+        style="width:100%;padding:9px 12px;border:1px solid #DDE4EF;border-radius:8px;font-size:14px;"
+        onchange="otCalcPreview()">`)}
+      ${field2('직원', `<select id="ot-worker-sel"
+        style="width:100%;padding:9px 12px;border:1px solid #DDE4EF;border-radius:8px;font-size:14px;"
+        onchange="otCalcPreview()">
+        <option value="">-- 직원 선택 --</option>
+        ${workers.map(w=>`<option value="${w.id}|${w.name}|${w.rank}">${w.name} ${w.rank}</option>`).join('')}
       </select>`)}
-      ${field2('시간 (h)', `<input type="number" id="ot-hours" min="0.5" max="24" step="0.5" placeholder="예: 2" style="width:100%;padding:9px 12px;border:1px solid #DDE4EF;border-radius:8px;font-size:14px;" oninput="otCalcPreview()">`)}
-      <div id="ot-wage-info" style="display:none;background:#F0F4F9;border-radius:8px;padding:10px 12px;margin-top:8px;font-size:11px;color:#5C6F8A;"></div>
-      <div id="ot-preview" style="background:#E8F0FB;border-radius:10px;padding:12px;margin-top:8px;font-size:13px;color:#1A2540;display:none;">
+      <div id="ot-wage-info" style="display:none;background:#F0F4F9;border-radius:8px;padding:10px 12px;margin-top:4px;font-size:11px;color:#5C6F8A;"></div>
+      ${field2('시간 (h)', `<input type="number" id="ot-hours" min="0.5" max="24" step="0.5" placeholder="예: 2"
+        style="width:100%;padding:9px 12px;border:1px solid #DDE4EF;border-radius:8px;font-size:14px;"
+        oninput="otCalcPreview()">`)}
+      <div id="ot-preview" style="background:#E8F0FB;border-radius:10px;padding:12px;margin-top:8px;font-size:13px;display:none;">
         <span style="color:#1D5BA6;font-weight:600;">예상 수당</span>
         <span id="ot-preview-amount" style="font-weight:800;color:#1D5BA6;float:right;font-size:15px;"></span>
       </div>
@@ -3556,23 +3543,22 @@ window.renderOvertimeAdd = () => {
 };
 
 window.otCalcPreview = async () => {
-  const name  = document.getElementById('ot-name')?.value;
+  const sel   = document.getElementById('ot-worker-sel')?.value;
   const hours = parseFloat(document.getElementById('ot-hours')?.value);
-  const prev  = document.getElementById('ot-preview');
-  const prevAmt = document.getElementById('ot-preview-amount');
   const wageInfo = document.getElementById('ot-wage-info');
-  if (!name) return;
+  const prev     = document.getElementById('ot-preview');
+  const prevAmt  = document.getElementById('ot-preview-amount');
+  if (!sel) { if(wageInfo) wageInfo.style.display='none'; if(prev) prev.style.display='none'; return; }
 
-  const wage = await otGetWage(name);
+  const [workerId, name] = sel.split('|');
+  const wage = await otGetWage(workerId, name);
+
   if (wageInfo) {
-    if (wage) {
-      wageInfo.style.display = 'block';
-      wageInfo.innerHTML = `<span style="color:#1D5BA6;font-weight:700;">통상임금: ${wage.rate.toLocaleString()}원/h</span>
-        <span style="margin-left:8px;color:#9AAABF;">(기본+연장+야간+주휴) ÷ 209</span>`;
-    } else {
-      wageInfo.style.display = 'block';
-      wageInfo.innerHTML = `<span style="color:#dc2626;">⚠️ 연봉계약서 없음 — 수당 계산 불가</span>`;
-    }
+    wageInfo.style.display = 'block';
+    wageInfo.innerHTML = wage
+      ? `통상임금 <strong style="color:#1D5BA6;">${wage.rate.toLocaleString()}원/h</strong>
+         <span style="color:#9AAABF;margin-left:6px;">(기본+연장+야간+주휴) ÷ 209</span>`
+      : `<span style="color:#dc2626;">⚠️ 연봉계약서 없음 — 수당 계산 불가</span>`;
   }
   if (!hours || hours <= 0 || !wage) { if(prev) prev.style.display='none'; return; }
   const amount = Math.round(wage.rate * hours);
@@ -3582,19 +3568,20 @@ window.otCalcPreview = async () => {
 
 window.otSave = async () => {
   const date  = document.getElementById('ot-date')?.value;
-  const name  = document.getElementById('ot-name')?.value;
+  const sel   = document.getElementById('ot-worker-sel')?.value;
   const hours = parseFloat(document.getElementById('ot-hours')?.value);
-  if (!date || !name || !hours || hours <= 0) { alert('날짜, 직원, 시간을 모두 입력해주세요.'); return; }
-  const wage = await otGetWage(name);
-  if (!wage) { if(!confirm('연봉계약서가 없어 수당이 0원으로 저장됩니다. 계속하시겠습니까?')) return; }
+  if (!date || !sel || sel === '' || !hours || hours <= 0) { alert('날짜, 직원, 시간을 모두 입력해주세요.'); return; }
+  const [workerId, name, rank] = sel.split('|');
+  const wage   = await otGetWage(workerId, name);
+  if (!wage && !confirm('연봉계약서가 없어 수당이 0원으로 저장됩니다. 계속하시겠습니까?')) return;
   const rate   = wage ? wage.rate : 0;
   const amount = Math.round(rate * hours);
-  const yearMonth = date.slice(0,7);
   try {
     const { collection, addDoc, serverTimestamp } =
       await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
     await addDoc(collection(window._db,'overtime'), {
-      date, name, hours, amount, rate, yearMonth, savedAt: serverTimestamp()
+      date, name, rank: rank||'', workerId, hours, amount, rate, yearMonth: date.slice(0,7),
+      savedAt: serverTimestamp()
     });
     alert('저장되었습니다.');
     renderOvertimeMain();
@@ -3602,7 +3589,7 @@ window.otSave = async () => {
 };
 
 // ── 수정 폼 ──
-window.renderOvertimeEdit = async (docId, backName, backType) => {
+window.renderOvertimeEdit = async (docId, workerId, name, rank, backType) => {
   const el = document.getElementById('tab-overtime');
   el.innerHTML = `<div style="padding:40px;text-align:center;"><div class="spinner"></div></div>`;
   try {
@@ -3611,70 +3598,87 @@ window.renderOvertimeEdit = async (docId, backName, backType) => {
     const snap = await getDoc(doc(window._db,'overtime', docId));
     if (!snap.exists()) { alert('데이터를 찾을 수 없습니다.'); renderOvertimeMain(); return; }
     const r = { id: snap.id, ...snap.data() };
-    const backFn = backType==='person' ? `renderOvertimePersonDetail('${backName}')` : `renderOvertimeSummary()`;
 
-    const wage = await otGetWage(r.name);
+    // workerId가 없는 구 데이터 대비
+    const wid  = workerId || r.workerId || '';
+    const wname = name || r.name || '';
+    const wrank = rank || r.rank || '';
+    const backFn = backType==='person'
+      ? `renderOvertimePersonDetail('${wid}','${wname}','${wrank}')`
+      : `renderOvertimeSummary()`;
+
+    const workers = await otGetWorkerList();
+    const wage    = wid ? await otGetWage(wid, wname) : null;
     const wageHtml = wage
       ? `<div style="background:#F0F4F9;border-radius:8px;padding:10px 12px;margin-top:4px;font-size:11px;color:#5C6F8A;">
-          통상임금: <strong style="color:#1D5BA6;">${wage.rate.toLocaleString()}원/h</strong>
-          (기본+연장+야간+주휴) ÷ 209
+          통상임금 <strong style="color:#1D5BA6;">${wage.rate.toLocaleString()}원/h</strong>
+          <span style="color:#9AAABF;margin-left:6px;">(기본+연장+야간+주휴) ÷ 209</span>
         </div>`
       : `<div style="background:#fff3cd;border-radius:8px;padding:8px;margin-top:4px;font-size:11px;color:#856404;">⚠️ 연봉계약서 없음</div>`;
 
     el.innerHTML = `
       ${backBtn2(backFn)}
       ${card2('✏️ 초과근로 수정',`
-        ${field2('날짜', `<input type="date" id="ot-date" value="${r.date}" style="width:100%;padding:9px 12px;border:1px solid #DDE4EF;border-radius:8px;font-size:14px;">`)}
-        ${field2('직원', `<select id="ot-name" style="width:100%;padding:9px 12px;border:1px solid #DDE4EF;border-radius:8px;font-size:14px;" onchange="otEditRefreshWage('${docId}','${backName}','${backType}')">
-          ${OT_NAMES.map(n=>`<option value="${n}" ${n===r.name?'selected':''}>${n} ${OT_STAFF[n].title}</option>`).join('')}
+        ${field2('날짜', `<input type="date" id="ot-date" value="${r.date}"
+          style="width:100%;padding:9px 12px;border:1px solid #DDE4EF;border-radius:8px;font-size:14px;">`)}
+        ${field2('직원', `<select id="ot-worker-sel"
+          style="width:100%;padding:9px 12px;border:1px solid #DDE4EF;border-radius:8px;font-size:14px;"
+          onchange="otEditRefreshWage()">
+          <option value="">-- 직원 선택 --</option>
+          ${workers.map(w=>`<option value="${w.id}|${w.name}|${w.rank}" ${w.id===wid?'selected':''}>${w.name} ${w.rank}</option>`).join('')}
         </select>`)}
         ${wageHtml}
-        ${field2('시간 (h)', `<input type="number" id="ot-hours" min="0.5" max="24" step="0.5" value="${r.hours}" style="width:100%;padding:9px 12px;border:1px solid #DDE4EF;border-radius:8px;font-size:14px;" oninput="otEditCalcPreview()">`)}
-        <div id="ot-edit-preview" style="background:#E8F0FB;border-radius:10px;padding:12px;margin-top:8px;font-size:13px;color:#1A2540;">
+        ${field2('시간 (h)', `<input type="number" id="ot-hours" min="0.5" max="24" step="0.5" value="${r.hours}"
+          style="width:100%;padding:9px 12px;border:1px solid #DDE4EF;border-radius:8px;font-size:14px;"
+          oninput="otEditCalcPreview()">`)}
+        <div id="ot-edit-preview" style="background:#E8F0FB;border-radius:10px;padding:12px;margin-top:8px;font-size:13px;">
           <span style="color:#1D5BA6;font-weight:600;">예상 수당</span>
           <span id="ot-edit-preview-amount" style="font-weight:800;color:#1D5BA6;float:right;font-size:15px;">${Number(r.amount||0).toLocaleString()}원</span>
         </div>
-        <button onclick="otUpdate('${docId}','${backName}','${backType}')" style="width:100%;margin-top:14px;padding:12px;background:#1D5BA6;border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;">수정 저장</button>
+        <button onclick="otUpdate('${docId}','${backType||''}')" style="width:100%;margin-top:14px;padding:12px;background:#1D5BA6;border:none;border-radius:10px;color:#fff;font-size:14px;font-weight:700;cursor:pointer;">수정 저장</button>
       `)}
     `;
   } catch(e) { alert('오류: ' + e.message); renderOvertimeMain(); }
 };
 
-window.otEditRefreshWage = async (docId, backName, backType) => {
-  const name = document.getElementById('ot-name')?.value;
-  if (!name) return;
-  _otWageCache = {}; // 캐시 초기화
+window.otEditRefreshWage = async () => {
+  const sel = document.getElementById('ot-worker-sel')?.value;
+  if (!sel) return;
+  const [wid, wname] = sel.split('|');
+  delete _otWageCache[wname];
+  const wage = await otGetWage(wid, wname);
+  const wageDiv = document.getElementById('ot-worker-sel')?.closest('div')?.nextElementSibling;
   await otEditCalcPreview();
 };
 
 window.otEditCalcPreview = async () => {
-  const name  = document.getElementById('ot-name')?.value;
+  const sel   = document.getElementById('ot-worker-sel')?.value;
   const hours = parseFloat(document.getElementById('ot-hours')?.value);
-  const prevEl  = document.getElementById('ot-edit-preview');
   const prevAmt = document.getElementById('ot-edit-preview-amount');
-  if (!name || !hours || hours <= 0) return;
-  const wage = await otGetWage(name);
-  if (!wage || !prevAmt) return;
-  const amount = Math.round(wage.rate * hours);
-  if (prevEl) prevEl.style.display = 'block';
-  prevAmt.textContent = `${amount.toLocaleString()}원`;
+  if (!sel || !hours || hours <= 0 || !prevAmt) return;
+  const [wid, wname] = sel.split('|');
+  const wage = await otGetWage(wid, wname);
+  if (!wage) return;
+  prevAmt.textContent = `${Math.round(wage.rate * hours).toLocaleString()}원`;
 };
 
-window.otUpdate = async (docId, backName, backType) => {
+window.otUpdate = async (docId, backType) => {
   const date  = document.getElementById('ot-date')?.value;
-  const name  = document.getElementById('ot-name')?.value;
+  const sel   = document.getElementById('ot-worker-sel')?.value;
   const hours = parseFloat(document.getElementById('ot-hours')?.value);
-  if (!date || !name || !hours || hours <= 0) { alert('모든 항목을 입력해주세요.'); return; }
-  const wage      = await otGetWage(name);
-  const rate      = wage ? wage.rate : 0;
-  const amount    = Math.round(rate * hours);
-  const yearMonth = date.slice(0,7);
+  if (!date || !sel || !hours || hours <= 0) { alert('모든 항목을 입력해주세요.'); return; }
+  const [workerId, name, rank] = sel.split('|');
+  const wage   = await otGetWage(workerId, name);
+  const rate   = wage ? wage.rate : 0;
+  const amount = Math.round(rate * hours);
   try {
     const { doc, updateDoc } =
       await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-    await updateDoc(doc(window._db,'overtime', docId), { date, name, hours, amount, rate, yearMonth });
+    await updateDoc(doc(window._db,'overtime', docId), {
+      date, name, rank: rank||'', workerId, hours, amount, rate, yearMonth: date.slice(0,7)
+    });
     alert('수정되었습니다.');
-    if (backType==='person') renderOvertimePersonDetail(backName);
+    if (backType==='person') renderOvertimePersonDetail(workerId, name, rank);
     else renderOvertimeSummary();
   } catch(e) { alert('오류: ' + e.message); }
 };
@@ -3682,36 +3686,30 @@ window.otUpdate = async (docId, backName, backType) => {
 // ── 삭제 ──
 window.otDelete = async (docId) => {
   if (!confirm('이 내역을 삭제하시겠습니까?')) return;
-  const { doc, deleteDoc } =
-    await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+  const { doc, deleteDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
   await deleteDoc(doc(window._db,'overtime', docId));
   await otLoadSummary();
 };
 
-window.otDeletePerson = async (docId, name) => {
+window.otDeletePerson = async (docId, workerId, name, rank) => {
   if (!confirm('이 내역을 삭제하시겠습니까?')) return;
-  const { doc, deleteDoc } =
-    await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+  const { doc, deleteDoc } = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
   await deleteDoc(doc(window._db,'overtime', docId));
-  await otLoadPersonDetail(name);
+  await otLoadPersonDetail(workerId, name, rank);
 };
 
-// ── 급여명세서 연동: 해당 월 초과근로수당 합계 조회 ──
-// psWorkerSelect 에서 호출: 직원명 + 기준월(yyyy-mm) → 초과근로 수당 합계 반환
+// ── 급여명세서 연동 ──
 window.getOvertimeAmountForPayslip = async (name, yearMonth) => {
   try {
     const { collection, query, where, getDocs } =
       await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
-    const q = query(collection(window._db,'overtime'),
-                    where('yearMonth','==',yearMonth),
-                    where('name','==',name));
-    const snap = await getDocs(q);
+    const snap = await getDocs(query(collection(window._db,'overtime'),
+                    where('yearMonth','==',yearMonth), where('name','==',name)));
     let total = 0;
     snap.forEach(d => { total += Number(d.data().amount||0); });
     return total;
   } catch(e) { return 0; }
 };
 </script>
-</body>
 </body>
 </html>
