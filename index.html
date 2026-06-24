@@ -884,7 +884,7 @@ async function renderHome() {
       <div class="hm-fc full" onclick="goTab('labor')"><div class="hm-step">2</div><div class="hm-fb"><div class="stage">계약 · 시급 입력 → 연봉 자동 산정</div><div class="ttl">계약서</div><div class="hm-pills"><span class="hm-pill">근로계약서</span><span class="hm-arrow">→</span><span class="hm-pill" onclick="event.stopPropagation();goTab('annual')">연봉계약서</span></div></div><div class="hm-chev">›</div></div>
       <div class="hm-fc" onclick="goTab('overtime')"><div class="hm-step">3</div><div class="hm-fb"><div class="stage">근무 · 통상임금 자동 계산</div><div class="ttl">초과근로</div></div><div class="hm-chev">›</div></div>
       <div class="hm-fc" onclick="goTab('payslip')"><div class="hm-step">4</div><div class="hm-fb"><div class="stage">급여 · 연봉 + 초과근로 연동</div><div class="ttl">급여명세서</div></div><div class="hm-chev">›</div></div>
-      <div class="hm-fc soon full"><div class="hm-step">5</div><div class="hm-fb"><div class="stage">퇴직 · 재직기간 × 평균임금</div><div class="ttl">퇴직금 정산 <span class="hm-soontag">준비 중</span></div></div></div>
+      <div class="hm-fc full" onclick="goTab('retire')"><div class="hm-step">5</div><div class="hm-fb"><div class="stage">퇴직 · 재직기간 × 평균임금</div><div class="ttl">퇴직금 정산</div></div><div class="hm-chev">›</div></div>
     </div>
   </div>`;
   loadHomeKpis();
